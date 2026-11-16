@@ -1,6 +1,7 @@
+# สำหรับณัฐณิชา (รัน AI): มี Chronos-2 + PyTorch ไฟล์ใหญ่ ติดตั้งนาน
 paho-mqtt>=2.0
 pandas>=2.0
-scikit-learn>=1.3
-joblib>=1.3
+pyarrow>=14
 matplotlib>=3.7
 requests>=2.31
+chronos-forecasting>=2.0
