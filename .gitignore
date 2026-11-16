@@ -1,0 +1,19 @@
+# PlatformIO / VS Code
+.pio/
+.vscode/
+
+# ความลับ ห้าม commit
+firmware/gateway/include/secrets.h
+ai/config_secrets.py
+tools/gateway_secrets.py
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# ข้อมูลและโมเดล (เก็บใน Google Drive)
+ai/data/
+ai/models/*.joblib
