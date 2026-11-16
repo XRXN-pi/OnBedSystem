@@ -1,0 +1,4 @@
+# สำหรับคนที่ไม่ได้รัน AI (วัตตะนะ): ใช้กับ notifier.py และ tools/fake_gateway.py
+paho-mqtt>=2.0
+pandas>=2.0
+requests>=2.31

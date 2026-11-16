@@ -1,0 +1,386 @@
+# 01 — ไอริณ: System Architect & Integration
+
+อ่าน `00_ภาพรวม_ทุกคนอ่านก่อน.md` ทั้งไฟล์ก่อน (ข้อ 2 คือข้อตกลงที่คุณเป็นเจ้าของ)
+
+## สิ่งที่ต้องส่งมอบ
+
+- **GitHub repository** ที่เข้าถึงได้จากอินเทอร์เน็ต มีโครงสร้างชัดเจน และไม่มีความลับ (ข้อ M8)
+- **เอกสารออกแบบ:** `docs/architecture.md`, `docs/message-format.md`, `docs/wiring.md`, `docs/integration.md` (Architecture 2/2 และรายงานส่วน System design)
+- **การรวมระบบ** วันที่ 20 พ.ย. และติดตั้งในห้องน้ำจริง (Field Test)
+- **กล่องอุปกรณ์ และห้องน้ำจำลอง** สำหรับ demo (Build Quality 3/3)
+- **รายงานฉบับสุดท้าย** ข้อ 3.1 (ภาพรวมระบบ), ข้อ 6 (ตารางสมาชิก + ลิงก์ GitHub + การใช้ AI tools) และภาคผนวก ก (ผังต่อสาย) ดูวิธีเขียนในขั้นที่ 10
+
+---
+
+## แผนรายวัน
+
+| วัน | งาน | เวลา | เสร็จเมื่อ |
+| --- | --- | --- | --- |
+| จ. 16 | ขั้นที่ 1 (สร้าง repo) | 1.5 ชม. | ทุกคน clone ได้, มี `.gitignore` |
+| อ. 17 | ขั้นที่ 2 (message-format.md + wiring.md) | 1.5 ชม. | เอกสาร 2 ไฟล์อยู่ใน repo |
+| พ. 18 | ขั้นที่ 3 (architecture.md ฉบับร่าง) | 1 ชม. | มี block diagram + data flow |
+| พฤ. 19 | ขั้นที่ 4 (integration.md) | 1 ชม. | checklist รวมระบบพร้อม |
+| **ศ. 20** | ขั้นที่ 5 (นำรวมระบบ) | 2 ชม. | ผ่าน checklist ครบ, อัดวิดีโอได้ |
+| ส.–อา. 21–22 | ขั้นที่ 6 (ติดตั้งห้องน้ำจริง) | 3–4 ชม. | ระบบทำงานในห้องน้ำจริง, จด log การติดตั้ง |
+| 23–27 | ขั้นที่ 7 (กล่องอุปกรณ์) + เริ่มขั้นที่ 8 | 3–4 ชม. รวม | กล่อง 3 ใบพร้อม |
+| ส.–อา. 28–29 | ขั้นที่ 8 (ห้องน้ำจำลอง) | 3–4 ชม. | ห้องจำลองเสร็จ |
+| 30 พ.ย.–3 ธ.ค. | ขั้นที่ 9 (ย้ายระบบเข้าห้องจำลอง + เก็บ repo) | 3 ชม. | demo บนห้องจำลองผ่าน, README ครบ |
+| 4–5 ธ.ค. | ขั้นที่ 10 (เขียนรายงานข้อ 3.1, 6, ภาคผนวก ก) | 3 ชม. | เขียนลง Google Doc รายงานเสร็จภายใน ส. 5 ธ.ค. 23:59 |
+| จ. 7–อ. 8 | ซ้อม demo, ขั้นที่ 11 (ส่ง source code) | | repo Public, zip ส่งแล้ว |
+
+---
+
+## ขั้นที่ 1: สร้าง GitHub repository (จ. 16)
+
+1. github.com → ปุ่ม **New** (repository)
+   - Name: `onbedsystem`
+   - **Private** ไปก่อน (เปลี่ยนเป็น Public ก่อนส่งงาน) หรือ Public เลยก็ได้
+   - ติ๊ก **Add a README file**
+   - Add .gitignore: เลือก None (เราใช้ของเราเอง)
+2. **Settings → Collaborators → Add people** ใส่ username GitHub ของอีก 4 คน
+3. clone ลงเครื่อง แล้วสร้างโครงสร้าง:
+   ```bash
+   git clone https://github.com/<ชื่อคุณ>/onbedsystem.git
+   cd onbedsystem
+   mkdir -p firmware docs/metrics dashboard ai tools
+   ```
+4. copy ไฟล์ `starter-code/.gitignore` มาไว้ที่ราก repo (ไฟล์นี้กันไม่ให้ `secrets.h`, `config_secrets.py`, `gateway_secrets.py`, ข้อมูลดิบ และโมเดลขึ้น GitHub)
+5. แก้ `README.md` ตามโครงนี้:
+   ```markdown
+   # OnBedSystem — ห้องน้ำดับกลิ่น (Smart Odor-Control Restroom)
+   2110356 Embedded System, Chulalongkorn University, 2026/1
+
+   ## ภาพรวม
+   (คำอธิบาย 3–4 บรรทัด + block diagram)
+
+   ## โครงสร้าง repo
+   | โฟลเดอร์ | เนื้อหา | ผู้รับผิดชอบ |
+   | --- | --- | --- |
+   | firmware/sensor-node | firmware sensor node (PlatformIO) | สิรวิชญ์ |
+   | firmware/gateway | firmware gateway (PlatformIO) | สุรสิทธิ์ |
+   | dashboard | การตั้งค่า NETPIE dashboard, schema | วัตตะนะ |
+   | ai | เก็บข้อมูล วัดผลโมเดล AI service | ณัฐณิชา |
+   | tools | เครื่องมือทดสอบ (fake gateway) | วัตตะนะ |
+   | docs | เอกสารออกแบบ test plan metrics | ไอริณ, ณัฐณิชา |
+
+   ## วิธีติดตั้งและใช้งาน
+   (เติมในขั้นที่ 9 วันที่ 30 พ.ย.–3 ธ.ค.)
+
+   ## สมาชิก
+   (copy ตารางสมาชิกจาก proposal: รหัสนิสิต ชื่อ role)
+
+   ## Library และแหล่งอ้างอิง
+   (เติมทีหลัง ดูขั้นที่ 9)
+   ```
+6. commit และ push:
+   ```bash
+   git add .gitignore README.md
+   git commit -m "init: repo structure, gitignore, README"
+   git push
+   ```
+   (โฟลเดอร์ว่าง Git จะไม่เก็บ ไม่เป็นไร แต่ละคนจะใส่ไฟล์ของตัวเองเข้ามาเอง)
+7. **ป้องกัน main พัง (ไม่บังคับ):** Settings → Branches → Add branch protection rule → `main` → ติ๊ก Require a pull request ถ้ากลุ่มยังไม่คล่อง Git ให้ข้ามข้อนี้ไปก่อน
+
+## ขั้นที่ 2: message-format.md และ wiring.md (อ. 17)
+
+### 2.1 สร้างไฟล์ `docs/message-format.md`
+สร้างไฟล์ใหม่ใน VS Code แล้ววางเนื้อหานี้ทั้งหมด (คัดลอกได้เลย ไม่ต้องแก้):
+
+````markdown
+# รูปแบบข้อความ (Message Format)
+
+## 1. Sensor node → Gateway (ESP-NOW, ทุก 10 วินาที)
+```json
+{"node_id": "WC-2", "seq": 1024, "odor": 1.42, "people": 5}
+{"node_id": "WC-1", "seq": 1030, "people": 3}
+```
+| field | ชนิด | ความหมาย |
+| --- | --- | --- |
+| node_id | string | "WC-1" = โซนทางเข้า, "WC-2" = โซนโถ |
+| seq | int | เลขลำดับข้อความ เพิ่มทีละ 1 |
+| odor | float | ค่ากลิ่น R0/Rs (อากาศสะอาด ≈ 1.0, ยิ่งเหม็นยิ่งสูง, -1 = เซ็นเซอร์หลุด) มีเฉพาะ WC-2 เพราะ WC-1 ไม่มี MQ-137 |
+| people | int | จำนวนครั้งที่มีคนเดินผ่านใน 10 วินาทีที่ผ่านมา |
+
+## 2. Gateway → NETPIE (MQTT, ทุก 10 วินาที)
+(วางตัวอย่าง JSON จากไฟล์ 00 ข้อ 2.3)
+
+| field | ความหมาย |
+| --- | --- |
+| ts, ts_ms | เวลาที่ gateway สร้างข้อมูล (วินาที + มิลลิวินาที) |
+| wcN_odor, wcN_people | ค่ากลิ่นและจำนวนคนของ node N |
+| wcN_seq, wcN_recv | seq ล่าสุดของ node N และจำนวนข้อความที่ gateway ได้รับจาก node N ทั้งหมด |
+| wcN_online | 1 = node N ส่งข้อมูลมาใน 60 วินาทีล่าสุด |
+| temp, hum | อุณหภูมิ (°C) ความชื้น (%) จาก KY-015 |
+| occupied | 1 = ultrasonic เจอคนในระยะ (มีคนอยู่ในห้อง) |
+| dist_cm | ระยะที่ ultrasonic วัดได้ (ซม.) |
+| leak | 1 = พื้นเปียก |
+| fan_level | ระดับพัดลม 0–3 |
+| clean_status | ok / soon / now |
+| ai_online | 1 = ได้รับคำสั่งจาก AI ใน 2 นาทีล่าสุด |
+| estop | 1 = กดปุ่มหยุดฉุกเฉินอยู่ |
+| buffered | 1 = ข้อมูลย้อนหลังที่ค้างตอนเน็ตหลุด |
+| timestamp | เวลาของข้อมูล (มิลลิวินาที) ให้ NETPIE เก็บลง feed ตามเวลาจริง |
+
+## 3. AI service → Gateway (MQTT)
+```json
+{"fan": 2, "status": "soon", "pred": 2.41}
+```
+
+## 4. MQTT topic
+| Topic | จาก → ถึง |
+| --- | --- |
+| @shadow/data/update | gateway → NETPIE (dashboard + feed) |
+| @msg/onbed/raw | gateway → AI service |
+| @msg/onbed/cmd | AI service → gateway |
+
+## 5. เหตุผลการออกแบบ
+- ใช้ JSON เพราะอ่านง่าย debug ง่าย ข้อความจาก node ยาวไม่ถึง 100 byte ไม่เกินขีดจำกัด 250 byte ของ ESP-NOW
+- มี node_id ทุกข้อความ เพื่อให้ gateway และ dashboard แยกข้อมูลแต่ละ node ได้ และเพิ่ม node ใหม่ได้โดยไม่ต้องแก้โค้ด gateway
+- มี seq เพื่อตรวจว่าข้อความหายไหม และใช้คำนวณ packet delivery rate
+- ส่ง timestamp ขึ้น NETPIE เพื่อให้ข้อมูลย้อนหลังที่ค้างใน buffer ตอนเน็ตหลุดถูกเก็บตามเวลาจริง
+````
+
+### 2.2 สร้างไฟล์ `docs/wiring.md`
+1. วางตารางนี้ทั้งหมด (ข้อมูลครบแล้ว):
+
+| บอร์ด | อุปกรณ์ | ขาอุปกรณ์ | ต่อกับ | หมายเหตุ |
+| --- | --- | --- | --- | --- |
+| Node WC-2 | MQ-137 | VCC | ESP32 VIN (5V) | WC-1 ไม่มี MQ-137 |
+| Node WC-2 | MQ-137 | GND | ESP32 GND | |
+| Node WC-2 | MQ-137 | AO | ตัวต้านทาน 10k → GPIO34, และ GPIO34 → ตัวต้านทาน 20k → GND | voltage divider ลด 5 V เหลือ 3.3 V |
+| Node WC-1, WC-2 | KY-032 | + / GND / OUT | 3.3V / GND / GPIO27 | ขา EN ไม่ต่อ (เสียบ jumper EN ไว้) |
+| Gateway | KY-015 | S / ขากลาง (+) / − | GPIO4 / 3.3V / GND | |
+| Gateway | Ultrasonic | VCC / GND / Trig | VIN (5V) / GND / GPIO26 | |
+| Gateway | Ultrasonic | Echo | ตัวต้านทาน 10k → GPIO33, และ GPIO33 → ตัวต้านทาน 20k → GND | Echo ออก 5 V ต้องลดเหลือ 3.3 V |
+| Gateway | Water level module | + / − / S | 3.3V / GND / GPIO35 | |
+| Gateway | ปุ่มหยุดฉุกเฉิน | ขา 1 / ขา 2 | GPIO14 / GND | |
+| Gateway | MOSFET module | PWM(TRIG) / GND | GPIO25 / GND ของ ESP32 | GND ต้องต่อร่วมกับ adapter |
+| Gateway | MOSFET module | VIN+ / VIN− | Adapter 12V + / − | |
+| Gateway | MOSFET module | OUT+ / OUT− | พัดลมสายแดง / สายดำ | ไดโอดคร่อมพัดลม ขีดขาวไปทางสายแดง |
+| Gateway | Buck converter (MP1584EN) | IN+ / IN− | Adapter 12V + / − | |
+| Gateway | Buck converter (MP1584EN) | OUT+ / OUT− | ESP32 VIN / GND | **ตั้ง 5.0 V ด้วยมัลติมิเตอร์ก่อนต่อ** |
+
+2. วาดผัง 2 รูป (node 1 รูป, gateway 1 รูป) ใน **draw.io** (เปิด app.diagrams.net ในเบราว์เซอร์ ฟรี ไม่ต้องสมัคร):
+   - วาดกล่องแทนแต่ละอุปกรณ์ เขียนชื่อขาไว้ข้างกล่อง แล้วลากเส้นตามตารางด้านบน
+   - ใช้สีสายให้เหมือนกันทุกรูป: แดง = ไฟบวก, ดำ = GND, เหลือง = สัญญาณ
+   - File → Export as → PNG → บันทึกเป็น `docs/img/wiring-node.png` และ `docs/img/wiring-gateway.png`
+   - ใส่รูปในไฟล์ด้วย `![ผังต่อสาย node](img/wiring-node.png)`
+3. ต่อท้ายไฟล์ด้วยหัวข้อ **"จุดที่ต้องระวัง"** 3 ข้อ:
+   - ขา AO ของ MQ-137 ห้ามต่อเข้า ESP32 ตรง ต้องผ่าน voltage divider (5 V จะทำให้ขาเสีย)
+   - GND ของ ESP32 ต้องต่อกับ GND ของ adapter 12 V ไม่งั้น MOSFET สั่งงานไม่ได้
+   - ตั้ง buck converter ให้ออก 5.0 V ก่อนต่อเข้า ESP32 และถอดสาย 5 V ออกตอนเสียบ USB อัปโหลดโค้ด
+
+### 2.3 commit
+```bash
+git add docs/message-format.md docs/wiring.md docs/img
+git commit -m "docs: message format and wiring"
+git push
+```
+
+## ขั้นที่ 3: architecture.md ฉบับร่าง (พ. 18)
+
+### 3.1 วาด block diagram
+1. เปิด app.diagrams.net วาดกล่อง 7 กล่องและลูกศรตามนี้:
+   - "Sensor Node WC-1 (KY-032)" → "Gateway ESP32" ลูกศรเขียนว่า "ESP-NOW"
+   - "Sensor Node WC-2 (MQ-137, KY-032)" → "Gateway ESP32" ลูกศรเขียนว่า "ESP-NOW"
+   - ใต้กล่อง gateway: "KY-015, Ultrasonic, Water level" และ "พัดลม (PWM)"
+   - "Gateway ESP32" → "NETPIE2020 (shadow + feed)" ลูกศรเขียนว่า "MQTT"
+   - "NETPIE2020" → "Dashboard"
+   - "NETPIE2020" ↔ "AI service (Python)" ลูกศรสองทาง เขียนว่า "@msg/onbed/raw" และ "@msg/onbed/cmd"
+   - "AI service" และ "Gateway" → "Discord (แม่บ้าน)"
+2. Export เป็น PNG บันทึก `docs/img/block-diagram.png`
+
+### 3.2 สร้างไฟล์ `docs/architecture.md`
+วางโครงนี้ แล้วเปลี่ยนข้อความในวงเล็บเป็นของจริง (ประโยคตัวอย่างใช้ได้เลยถ้าไม่ได้เปลี่ยนการออกแบบ):
+
+```markdown
+# สถาปัตยกรรมระบบ
+
+![Block diagram](img/block-diagram.png)
+
+## 1. การไหลของข้อมูล
+1. Sensor node 2 ตัว (WC-1 โซนทางเข้า, WC-2 โซนโถ) นับคนเดินผ่านด้วย KY-032 (เซ็นเซอร์อินฟราเรดแบบสะท้อน) และ WC-2 อ่านค่ากลิ่นจาก MQ-137 ด้วย (โซนโถกลิ่นแรงที่สุด) แล้วส่งให้ gateway ผ่าน ESP-NOW ทุก 10 วินาที
+2. Gateway รวมข้อมูลจาก node กับเซ็นเซอร์ของตัวเอง (KY-015, ultrasonic, water level) ตัดสินระดับพัดลมทุก 0.5 วินาที และส่งข้อมูลขึ้น NETPIE ทุก 10 วินาที
+3. NETPIE เก็บข้อมูลดิบใน feed และแสดงผลบน dashboard
+4. AI service รับข้อมูลจาก NETPIE ทำนายค่ากลิ่นในอีก 30 นาที แล้วส่งระดับพัดลมกลับไปที่ gateway
+5. ระบบแจ้งแม่บ้านผ่าน Discord เมื่อควรทำความสะอาด พื้นเปียก หรืออุปกรณ์ขาดการเชื่อมต่อ
+
+## 2. เหตุผลที่เลือกเทคโนโลยี
+- ESP-NOW: node ไม่ต้องต่อ router ส่งตรงหา gateway ได้ เร็ว และใช้ Wi-Fi ที่มีในชิปอยู่แล้ว
+- NETPIE2020: platform ของไทย มี shadow, feed และ dashboard ในตัว
+- คุมพัดลมที่ gateway ไม่ใช่ที่ cloud: พัดลมยังทำงานได้แม้เน็ตหลุด
+- AI รันบนคอม: ใช้โมเดลขนาดใหญ่ (Chronos-2) ได้และปรับง่าย ถ้า AI หลุด gateway มีวิธีสำรอง (fallback) คุมพัดลมจากค่ากลิ่นปัจจุบัน
+
+## 3. การประมวลผลแบบ real-time ที่ gateway
+gateway ตัดสินระดับพัดลมทุก 0.5 วินาทีจากข้อมูลล่าสุด และตรวจพื้นเปียกทันทีโดยไม่ต้องรอ cloud
+
+## 4. การรองรับหลาย node (scalability)
+ทุกข้อความมี node_id gateway ลงทะเบียน node ใหม่อัตโนมัติ (สูงสุด 4 ตัว) และสร้างชื่อ field บน cloud จาก node_id (WC-1 → wc1)
+
+## 5. สิ่งที่เปลี่ยนจาก proposal
+- ค่ากลิ่นใช้ R0/Rs แทน Rs/R0 เพราะความต้านทานของ MQ-137 ลดลงเมื่อมีแอมโมเนีย การกลับเศษส่วนทำให้ค่าเพิ่มขึ้นเมื่อเหม็น
+- MQTT over TLS ของ NETPIE ใช้ port 1884 (proposal เขียน 8883)
+- แจ้งเตือนผ่าน Discord (webhook) แทน Telegram
+- AI ใช้ Chronos-2 (โมเดลพยากรณ์ time series สำเร็จรูป แบบ zero-shot) แทนการเทรน regression เองด้วย scikit-learn
+- ใช้ MQ-137 ตัวเดียวที่ WC-2 (โซนโถ) แทน 2 ตัว ส่วน WC-1 (ทางเข้า) มีแค่ KY-032 เซ็นเซอร์ยังครบ 5 ชนิด และยังมี node จริง 2 ตัว
+- เปลี่ยนเซ็นเซอร์เป็นตัวที่ยืมได้จากวิชา ทำหน้าที่เดิม: IR break-beam → KY-032, DHT22 → KY-015, PIR → ultrasonic HC-SR04 (ฟิลด์ `pir` เปลี่ยนเป็น `occupied` + `dist_cm`), water-leak → water level module
+```
+
+### 3.3 commit
+```bash
+git add docs/architecture.md docs/img/block-diagram.png
+git commit -m "docs: architecture overview"
+git push
+```
+
+## ขั้นที่ 4: integration.md — ขั้นตอนรวมระบบ (พฤ. 19)
+
+เขียน `docs/integration.md` เป็น checklist ด้านล่าง (ใช้จริงวันศุกร์ และใช้ทุกครั้งที่ประกอบระบบใหม่ เช่น ตอนย้ายเข้าห้องจำลอง)
+
+```markdown
+## ก่อนเริ่ม
+- [ ] ทุกคน git pull ล่าสุด
+- [ ] hotspot ชื่อ OnBed-Hotspot เปิดอยู่ เป็น 2.4 GHz
+- [ ] fake_gateway.py และ gateway_fake ปิดหมดแล้ว (ห้ามซ้อน Client ID)
+
+## ลำดับเปิดเครื่อง
+1. [ ] gateway แฟลช env:gateway, Serial ขึ้น "WiFi OK channel=X" และ "[MQTT] connecting... OK"
+2. [ ] จด Gateway MAC → ใส่ใน config.h ของ node → แฟลช env:wc1, env:wc2
+3. [ ] เปิด node WC-1 → Serial node ขึ้น "ESP-NOW ready on channel X" (X ตรงกับ gateway) และ "OK"
+4. [ ] gateway Serial ขึ้น "[NODE] new node registered: WC-1" และ "[ESP-NOW] WC-1 ..."
+5. [ ] เปิด node WC-2 → gateway ขึ้น "[ESP-NOW] WC-2 ..."
+6. [ ] NETPIE portal → device gateway → Shadow มี wc1_*, wc2_*, temp, hum อัปเดตทุก 10 วินาที
+7. [ ] dashboard ค่าเปลี่ยนตามจริง (เอามือผ่านหน้า KY-032 / เปิดขวดน้ำยาเช็ดกระจกใกล้ MQ-137 / เป่าลมหายใจใส่ KY-015 / ยืนหน้า ultrasonic)
+8. [ ] collect.py บันทึกลง CSV
+9. [ ] ทุกคน commit + push
+```
+
+**ถ้าติดตรงไหน (ใส่ในไฟล์ด้วย):**
+| อาการ | ดูที่ |
+| --- | --- |
+| gateway ไม่ขึ้น MQTT OK | Client ID/Token/Secret ใน `secrets.h`, มีโปรแกรมอื่นใช้ Client ID เดียวกันอยู่ไหม |
+| node ขึ้น FAILED | MAC ใน `config.h`, ชื่อ hotspot, เปิด gateway ก่อน node |
+| gateway ได้ข้อมูลแต่ dashboard ไม่ขึ้น | Shadow ใน portal อัปเดตไหม → ถ้าใช่ ปัญหาอยู่ที่ datasource ของ dashboard |
+| collect.py ไม่ได้ข้อมูล | device `ai-service` อยู่ group เดียวกับ `gateway` ไหม |
+
+## ขั้นที่ 5: วันรวมระบบ (ศ. 20)
+
+1. ทำตาม `docs/integration.md` ทีละข้อ ติ๊กเมื่อผ่าน ข้อไหนพังให้แก้ก่อน ห้ามข้าม
+2. ทุกครั้งที่เจอปัญหา จดต่อท้าย `docs/integration.md` ใต้หัวข้อ `## Log` ในรูปแบบ
+   ```
+   - 2026-11-20 18:30 node WC-2 ส่ง FAILED → MAC ใน config.h พิมพ์ผิด 1 หลัก → แก้แล้วแฟลชใหม่ ผ่าน
+   ```
+   log นี้จะเอาไปเขียนรายงานข้อ 5 (ปัญหาที่เจอและวิธีแก้) ตอนท้าย
+3. commit `docs/integration.md` หลังรวมระบบเสร็จ
+4. ผ่านครบแล้วให้ณัฐณิชาอัดวิดีโอทันที
+
+## ขั้นที่ 6: ติดตั้งในห้องน้ำจริง (ส.–อา. 21–22)
+
+**ก่อนไป:**
+- ขออนุญาตใช้สถานที่และปลั๊กไฟให้เรียบร้อย ถ้าใช้ห้องน้ำคณะไม่ได้ ใช้ห้องน้ำหอหรือบ้านของสมาชิกที่ลากปลั๊กพ่วงเข้าไปได้
+- ของที่ต้องเอาไป: ปลั๊กพ่วง (มีฟิวส์/เบรกเกอร์), เทปกาวสองหน้าแบบแรง, เคเบิลไทร์, สาย USB ยาว 2–3 เมตร, หัวชาร์จ 5V 2 ตัว (สำหรับ node), กล่อง, มือถือเปิด hotspot (หรือ pocket Wi-Fi ที่เปิดทิ้งไว้ได้)
+
+**ตำแหน่ง:**
+| อุปกรณ์ | ตำแหน่ง | เหตุผล |
+| --- | --- | --- |
+| Node WC-1 + KY-032 | ทางเข้า ติดที่ผนังข้างทางเดินจุดที่แคบที่สุด สูงระดับเอว (~90–100 ซม.) หันเข้าทางเดิน | KY-032 ตรวจได้แค่ ~30 ซม. คนต้องเดินผ่านใกล้เซ็นเซอร์ |
+| Node WC-2 + KY-032 | โซนโถ KY-032 ติดข้างทางเข้าโซนโถ | กลิ่นแรงสุดอยู่ตรงนี้ |
+| Gateway + MOSFET + buck (กล่องเดียว) | ผนังสูงจากพื้น ≥ 1 เมตร ใกล้ปลั๊ก ห่างอ่างและฝักบัว | กฎความปลอดภัย: แยกน้ำกับวงจร |
+| พัดลม | ช่องระบายอากาศ / หน้าต่าง | ดูดอากาศออก |
+| Leak sensor | พื้นจุดที่น้ำขังบ่อย (หน้าอ่างล้างมือ) สายยาวขึ้นไปที่กล่อง | ตรวจพื้นเปียก |
+| KY-015 | นอกกล่อง gateway | วัดอากาศจริง |
+| Ultrasonic | นอกกล่อง gateway หันไปทางที่คนยืน (หน้าโถหรือหน้าอ่าง) ไม่มีของขวางในระยะ 1 เมตร | ตรวจว่ามีคนอยู่ในห้อง |
+
+**ความปลอดภัย (ข้อ M7):**
+- ใช้ไฟ DC 12 V และ 5 V เท่านั้น ไม่มีสายไฟบ้านเปลือย (adapter เป็นอุปกรณ์สำเร็จรูปปิดมิดชิด)
+- ปลั๊กพ่วงวางสูงจากพื้น ห่างจุดที่น้ำกระเด็น
+- สายทุกเส้นยึดกับผนัง ไม่พาดทางเดินจนสะดุด
+- ติดป้ายเล็กๆ "อุปกรณ์โครงงานนิสิต ห้ามแตะ ติดต่อ (เบอร์)"
+
+**หลังติดตั้ง:**
+1. ถ่ายรูปอุปกรณ์ทุกชิ้นตรงจุดที่ติด และรูปมุมกว้างทั้งห้อง 1 รูป (รูปเหล่านี้ใช้ในรายงานข้อ 3.1 และวิดีโอ final) บันทึกไว้ใน `docs/img/deploy-*.jpg`
+2. สร้าง `docs/deployment.md` เป็นตาราง:
+   | อุปกรณ์ | ตำแหน่ง | ความสูงจากพื้น | วันเวลาที่ติด | รูป |
+   | --- | --- | --- | --- | --- |
+   | Node WC-1 | ทางเข้า ข้างอ่างล้างมือ | 95 ซม. | 2026-11-21 14:00 | deploy-wc1.jpg |
+3. commit ทั้งสองอย่าง
+
+## ขั้นที่ 7: กล่องอุปกรณ์ (23–27) ← Build Quality
+
+ทำ 3 กล่อง (node 2, gateway 1)
+- **วัสดุ:** กล่องพลาสติกกันน้ำ (กล่องเก็บของหรือกล่องไฟฟ้า IP65 ขนาดประมาณ 20×12×8 ซม. สำหรับ node, 25×15×8 ซม. สำหรับ gateway เพราะ breadboard ขนาดเต็มยาว 16.5 ซม.) หรือพิมพ์ 3D
+- **กล่อง node:** รูสาย USB, รูสาย KY-032 และเฉพาะกล่อง WC-2 เจาะรูระบายอากาศด้านล่างเพิ่ม (ให้กลิ่นเข้าถึง MQ-137 แต่กันน้ำหยด)
+- **กล่อง gateway:** ยึด ESP32, buck, MOSFET กับแผ่นรอง (สกรู M3 หรือเทปโฟมสองหน้า), เจาะรูสายพัดลม สาย leak sensor และสาย adapter, ติด KY-015 และ ultrasonic ไว้ด้านนอก (ultrasonic หันเข้าทางที่คนยืน), ปุ่มหยุดฉุกเฉินติดฝากล่องให้กดได้ทันที **ติดป้าย "STOP"**
+- **เก็บสาย:** ใช้สายจัมเปอร์ตัวผู้-ตัวเมียสั้นที่สุด หรือบัดกรีลงแผ่น PCB อเนกประสงค์ (protoboard) แทน breadboard จะไม่หลุดตอนขนย้าย
+- ติดป้ายชื่อทุกสาย (เช่น "FAN +", "LEAK S")
+
+## ขั้นที่ 8: ห้องน้ำจำลองสำหรับ demo (28–29)
+
+**วัสดุ:** กล่องพลาสติกใส (กล่องเก็บของประมาณ 60×40×40 ซม.) หรือกล่องลังกระดาษหนา, ไม้บัลซาหรือฟิวเจอร์บอร์ดทำผนัง, ถาดรองพื้น
+1. **ผนังด้านหน้า:** เจาะช่องประตูกว้าง 15–20 ซม. สูง 25 ซม. ติด KY-032 ของ WC-1 ที่ขอบประตูด้านใน หันเข้าช่องประตู (ช่องกว้าง 15–20 ซม. อยู่ในระยะ KY-032 ที่ปรับได้)
+2. **ด้านใน:** วางโมเดลโถสุขภัณฑ์เล็ก (กระดาษหรือพลาสติก) ติด node WC-2 ใกล้โถ และติด KY-032 ของ WC-2 ที่ขอบทางเข้าโซนโถ หันเข้าทางเข้า
+3. **ผนังด้านข้าง:** เจาะรูขนาดพัดลมแล้วติดพัดลม 12 V ให้ดูดอากาศออก
+4. **พื้น:** วางถาดรอง แล้ววาง leak sensor บนพื้น (สาธิตด้วยฟองน้ำเปียก)
+5. **กล่อง gateway** ติดด้านนอกบนผนังข้าง (แยกจากจุดที่ใช้น้ำ ตามกฎความปลอดภัย)
+6. **ฝาด้านบน:** เปิดได้ สำหรับพ่นน้ำยาเช็ดกระจก (มีแอมโมเนีย) ตอน demo
+7. ยกทั้งชุดได้คนเดียว ไม่มีสายห้อย (Build Quality: ขนย้ายได้ง่ายไม่เสียหาย)
+
+## ขั้นที่ 9: ย้ายระบบ + เก็บ repo (30 พ.ย.–3 ธ.ค.)
+
+1. **ย้ายระบบเข้าห้องจำลอง:** หลังณัฐณิชาได้ข้อมูลช่วง AI closed loop พอแล้ว (อย่างน้อยถึง 1 ธ.ค.) ถอดจากห้องน้ำจริงมาติดในห้องจำลอง แล้วทำ `docs/integration.md` ใหม่ทั้งหมด
+2. **README ฉบับสมบูรณ์:**
+   - วิธี build แต่ละส่วน (อ้างไฟล์ secrets ตัวอย่างที่ต้อง copy)
+   - ลำดับเปิดระบบ
+   - รายชื่อสมาชิก + role + สิ่งที่แต่ละคนทำ
+   - **Library ที่ใช้และ license:** ArduinoJson (MIT), PubSubClient (MIT), Adafruit DHT sensor library (MIT), Adafruit Unified Sensor (Apache 2.0), paho-mqtt (EPL/EDL), pandas (BSD), chronos-forecasting และโมเดล amazon/chronos-2 (Apache 2.0), PyTorch (BSD) ฯลฯ
+   - **แหล่งอ้างอิงโค้ด/ตัวอย่างที่ใช้** (ข้อ 4.6 บังคับ) เช่น เอกสาร NETPIE, ตัวอย่าง ESP-NOW ของ Espressif, starter code ที่ได้จาก AI tool
+3. **ตรวจความลับครั้งสุดท้าย:**
+   ```bash
+   git log -p | grep -iE "password|token|secret|webhooks" | grep -v -iE "example|xxxx|your-"
+   ```
+   ต้องไม่เจอค่าจริง ถ้าเจอ ต้องเปลี่ยนรหัส Wi-Fi และขอ token NETPIE ใหม่ และลบ Discord webhook แล้วสร้างใหม่ (ลบใน commit ใหม่ไม่พอ เพราะ history ยังเก็บไว้)
+4. **ดู GitHub → Insights → Contributors** ทุกคนต้องมี commit ถ้าใครยังไม่มี ให้คนนั้น commit งานส่วนของตัวเอง (เอกสาร ผลทดสอบ โค้ด)
+
+## ขั้นที่ 10: เขียนรายงาน (4–5 ธ.ค.)
+
+เขียนใน Google Doc `OnBedSystem_Final_Report` ที่ณัฐณิชาแชร์ (ดูไฟล์ 00 ข้อ 8) ใต้หัวข้อของคุณ ให้เสร็จภายใน **ส. 5 ธ.ค. 23:59**
+
+### 10.1 หัวข้อ 3.1 ภาพรวมระบบ (ประมาณ 1 หน้า)
+เขียนตามลำดับนี้:
+1. **ย่อหน้าเปิด 2–3 ประโยค:** ระบบมีส่วนประกอบอะไรบ้าง ตัวอย่าง: "ระบบประกอบด้วย sensor node 2 ตัว, gateway 1 ตัว, NETPIE2020 สำหรับเก็บข้อมูลและแสดงผล และ AI service ที่ทำนายระดับกลิ่นเพื่อควบคุมพัดลม"
+2. **รูป block diagram** (`docs/img/block-diagram.png`) ใต้รูปเขียน "รูปที่ 1 ภาพรวมระบบ"
+3. **การไหลของข้อมูล:** copy หัวข้อ 1 จาก `docs/architecture.md` (5 ข้อ)
+4. **การประมวลผล real-time และ scalability:** copy หัวข้อ 3 และ 4 จาก `architecture.md`
+5. **รูปแบบข้อความ:** ใส่ตัวอย่าง JSON 2 อัน (node → gateway และ gateway → NETPIE) และตาราง topic 3 แถว จาก `docs/message-format.md` (ไม่ต้องใส่ตาราง field ทั้งหมด ใส่แค่ field สำคัญ: node_id, seq, odor, people)
+6. **สิ่งที่เปลี่ยนจาก proposal:** copy หัวข้อ 5 จาก `architecture.md`
+
+### 10.2 หัวข้อ 6 สมาชิก, Git repository, การใช้ AI tools (ประมาณ ½ หน้า)
+1. **ตารางสมาชิก:**
+   | รหัสนิสิต | ชื่อ | บทบาท | งานที่ทำจริง |
+   | --- | --- | --- | --- |
+   | 6833298121 | ไอริณ ถิระพานิช | System Architect & Integration | repo, เอกสารออกแบบ, รวมระบบ, ติดตั้ง, กล่องและห้องน้ำจำลอง |
+   | (เติมอีก 4 คน โดยถามแต่ละคนว่าทำอะไรจริงบ้าง) | | | |
+2. **ลิงก์ GitHub:** `https://github.com/<ชื่อคุณ>/onbedsystem`
+3. **การใช้ AI tools:** รวมบรรทัดที่ทุกคนเขียนไว้ใต้หัวข้อ 6 (ดูไฟล์ 00 ข้อ 8) เป็นตาราง:
+   | AI tool | ใช้ทำอะไร | ใครใช้ |
+   | --- | --- | --- |
+   | Claude | สร้าง starter code ของ firmware, AI service และแผนงาน สมาชิกนำมาปรับแก้ ทดสอบกับอุปกรณ์จริง และอธิบายได้ | ทุกคน |
+   | (เติมตามที่แต่ละคนใช้จริง) | | |
+   เขียนตามจริงเท่านั้น สเปกข้อ 4.6 บังคับ
+
+### 10.3 ภาคผนวก ก ผังต่อสาย (ไม่นับหน้า)
+ใส่รูป `wiring-node.png`, `wiring-gateway.png` และตารางจาก `docs/wiring.md`
+
+## ขั้นที่ 11: ส่ง source code (8 ธ.ค.)
+
+1. Settings → General → Danger Zone → **Change visibility → Public**
+2. ทดสอบเปิดลิงก์ในหน้าต่างไม่ระบุตัวตน (incognito) ต้องเห็น repo
+3. ดาวน์โหลด zip: ปุ่ม **Code → Download ZIP** แล้วส่งใน MyCourseVille พร้อมลิงก์
+
+## คำถามที่อาจารย์น่าจะถาม
+
+1. **อธิบายภาพรวมระบบและ data flow** (ไฟล์ 00 ข้อ 1)
+2. **ทำไมเลือก ESP-NOW?** node ไม่ต้องต่อ Wi-Fi/router, ส่งตรงหา gateway, เร็ว, ข้อความเล็ก
+3. **ระบบรองรับ node เพิ่มยังไง?** `node_id` ในทุกข้อความ gateway ลงทะเบียนเอง ชื่อ field สร้างจาก `node_id`
+4. **ถ้า cloud ล่ม ระบบทำอะไรได้บ้าง?** gateway คุมพัดลมต่อ, buffer ข้อมูล 1 ชม., ส่งย้อนหลังพร้อม timestamp
+5. **ความปลอดภัยทางไฟฟ้า?** DC เท่านั้น, กล่องยกสูงแยกจากน้ำ, ปุ่มหยุดฉุกเฉิน, timeout พัดลม

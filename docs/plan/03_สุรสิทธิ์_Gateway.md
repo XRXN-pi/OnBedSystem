@@ -1,0 +1,428 @@
+# 03 — สุรสิทธิ์: Embedded Developer (Gateway & Cloud)
+
+อ่าน `00_ภาพรวม_ทุกคนอ่านก่อน.md` ข้อ 2 และ 3 ก่อน
+
+## สิ่งที่ต้องส่งมอบ
+
+- **Gateway ESP32** ที่ทำหน้าที่ต่อไปนี้:
+  - รับข้อมูลจาก sensor node (ESP-NOW)
+  - อ่าน KY-015 (อุณหภูมิ/ความชื้น), ultrasonic (มีคนอยู่ในห้องไหม) และ water level module (พื้นเปียก) ของตัวเอง (ครบข้อ M1 ฝั่ง gateway)
+  - คุมพัดลม 3 ระดับทันทีโดยไม่ต้องรอเน็ต (real-time processing ที่ gateway)
+  - ส่งข้อมูลขึ้น NETPIE ทุก 10 วินาที และรับคำสั่งจาก AI
+  - แจ้งเตือนพื้นเปียกเองผ่าน Discord
+- ได้คะแนน:
+  - **E1** FreeRTOS 3 task
+  - **E4** เก็บข้อมูลไว้ตอนเน็ตหลุดแล้วส่งย้อนหลัง (ฝั่ง node ทำ ACK/retry)
+  - **E5** TLS + ไม่มีความลับใน repo
+  - **E6** OTA
+  - **Robustness** ไฟดับหรือ Wi-Fi หลุดแล้วกลับมาเอง
+
+ไฟล์ของคุณใน starter code: `firmware/gateway/` ทั้งโฟลเดอร์ (ยกเว้น `discord.h` / `discord.cpp` ที่วัตตะนะเป็นเจ้าของ)
+
+## อุปกรณ์
+
+| ของ | หมายเหตุ |
+| --- | --- |
+| ESP32 DevKit 1 ตัว | |
+| KY-015 (DHT11 แบบโมดูล 3 ขา) — **ยืม** | มี pull-up บนแผงแล้ว ไม่ต้องใส่ตัวต้านทานเพิ่ม |
+| Ultrasonic HC-SR04 — **ยืม** | |
+| Water level module (แผ่นแดง ขา S, +, −) — **ยืม** | |
+| ตัวต้านทาน 10kΩ 1 ตัว + 20kΩ 1 ตัว (หรือ 10k 3 ตัว) | divider ขา Echo ของ ultrasonic |
+| พัดลม DC 12 V (2 สาย) | |
+| **MOSFET module แบบ logic-level** เช่น "D4184 / AOD4184 MOSFET trigger module" | **ห้ามใช้ IRF520 module** เพราะต้องใช้แรงดันขา gate ~10 V สั่งด้วย 3.3 V จาก ESP32 แทบไม่ติด |
+| ไดโอด 1N5819 หรือ 1N4007 | กันไฟย้อนจากมอเตอร์พัดลม |
+| Adapter 12 V 1–2 A | |
+| MP1584EN step-down module (buck converter) — **ยืม** | แปลง 12 V → 5 V เลี้ยง ESP32 ขาบนแผงเขียน IN+ / IN− / OUT+ / OUT− |
+| ปุ่มกด 1 ตัว | ปุ่มหยุดฉุกเฉิน |
+| มัลติมิเตอร์ | ใช้ตั้ง buck converter |
+
+---
+
+## แผนรายวัน
+
+| วัน | งาน | เวลา | เสร็จเมื่อ |
+| --- | --- | --- | --- |
+| จ. 16 | ลงเครื่องมือ (00 ข้อ 3), ขั้นที่ 1–2 | 1.5 ชม. | ได้ MAC ของ gateway, มี device ใน NETPIE ครบ |
+| อ. 17 | ขั้นที่ 3–4 | 2 ชม. | อ่านเซ็นเซอร์ได้ครบ, `gateway_fake` ส่งข้อมูลขึ้น NETPIE ได้ |
+| พ. 18 | ขั้นที่ 5–6 | 1.5 ชม. | พัดลมเปลี่ยนระดับได้ (ถ้ามีของ), อัปโหลดผ่าน OTA ได้ |
+| พฤ. 19 | ขั้นที่ 7 + commit | 1.5 ชม. | รันนิ่ง 1 ชม., ทดสอบ buffer ผ่าน |
+| **ศ. 20** | ขั้นที่ 8 (รวมระบบ) | 1–2 ชม. | ข้อมูลจาก node จริงขึ้น NETPIE |
+| ส.–อา. 21–22 | ขั้นที่ 9 (ติดตั้งจริง + Discord) | 3 ชม. | gateway + พัดลมทำงานในห้องน้ำจริง, แจ้งพื้นเปียกได้ |
+| จ.–อ. 23–24 | ขั้นที่ 10 (TLS) | 2 ชม. | ต่อ NETPIE ผ่าน port 1884 สำเร็จ, อัปเดตผ่าน OTA |
+| พ.–ศ. 25–27 | ขั้นที่ 11 (ทดสอบความทนทาน) | 2–3 ชม. | ผลทดสอบ 5 ข้ออยู่ใน `docs/gateway-tests.md` |
+| ส.–อา. 28–29 | ขั้นที่ 12 ส่วนเตรียม (จุดติดพัดลมและกล่อง gateway ในห้องจำลอง) | 1 ชม. | มีรูพัดลมและจุดยึดกล่องพร้อม |
+| อ. 1 ธ.ค. | ขั้นที่ 12 ส่วนย้าย (ย้าย gateway + พัดลม + leak sensor + ultrasonic เข้าห้องจำลอง) | 1.5 ชม. | พัดลมในห้องจำลองเปลี่ยนระดับตามค่ากลิ่น |
+| 2–3 ธ.ค. | ขั้นที่ 13 (ทดสอบ T7, T9, T11, T12, T13 รอบจริง) | 2 ชม. | เติมผลใน `docs/test-plan.md` แล้ว commit |
+| 4–5 ธ.ค. | ข้อ 15 (เขียนรายงานข้อ 3.3) | 2 ชม. | เขียนลง Google Doc รายงานเสร็จภายใน ส. 5 ธ.ค. 23:59 |
+| จ. 7 | ข้อ 16 (ซ้อมตอบคำถาม) + ซ้อม OTA ตาม demo ในไฟล์ 05 ขั้นที่ 14 | 1 ชม. | ตอบคำถามในข้อ 16 ได้โดยไม่ดูโน้ต, OTA ผ่าน |
+
+---
+
+## ขั้นที่ 1: หา MAC ของ gateway (จ. 16)
+
+1. สร้างโปรเจคทดสอบ `hwtest` (PlatformIO → New Project, Board **Espressif ESP32 Dev Module**, Framework Arduino) และเพิ่ม `monitor_speed = 115200` ใน `platformio.ini`
+2. `src/main.cpp`:
+   ```cpp
+   #include <Arduino.h>
+   #include <WiFi.h>
+   void setup() { Serial.begin(115200); WiFi.mode(WIFI_STA); }
+   void loop() { Serial.println(WiFi.macAddress()); delay(2000); }
+   ```
+3. Upload แล้วดู Serial Monitor จด MAC (เช่น `24:6F:28:12:34:56`) **ส่งให้สิรวิชญ์** (node ต้องใช้)
+
+## ขั้นที่ 2: ตั้งค่า NETPIE2020 (จ. 16)
+
+1. สมัครที่ **portal.netpie.io** (ใช้อีเมลกลางของกลุ่ม จะได้ให้คนทำ dashboard และ AI เข้าใช้บัญชีเดียวกัน)
+2. **Create Project** ชื่อ `onbedsystem`
+3. ในโปรเจค ไปที่ **Device Groups** → สร้าง group ชื่อ `onbed-group`
+4. ไปที่ **Device List** → **Create Device** 2 ตัว และเลือก group `onbed-group` ทั้งคู่:
+   - `gateway`
+   - `ai-service`
+5. กดเข้าแต่ละ device จะเห็น **Client ID**, **Token**, **Secret** ใช้ในไฟล์ต่อไปนี้:
+   - ของ `gateway` → `firmware/gateway/include/secrets.h` และ `tools/gateway_secrets.py`
+   - ของ `ai-service` → `ai/config_secrets.py` (ส่งให้ณัฐณิชาทางแชทส่วนตัว ห้ามโพสต์ในที่สาธารณะ)
+6. **สำคัญ:** device ที่ส่ง `@msg` หากันต้องอยู่ group เดียวกัน ([docs.netpie.io](https://docs.netpie.io/en/mqtt-api.html))
+7. การตั้ง Schema/Feed และ dashboard เป็นงานของวัตตะนะ
+
+## ขั้นที่ 3: ต่อและทดสอบเซ็นเซอร์ของ gateway (อ. 17)
+
+**ต่อสาย:**
+```
+KY-015 (DHT11)        S → GPIO4      ขากลาง (+) → 3.3V      − → GND
+Ultrasonic HC-SR04    VCC → VIN(5V)  GND → GND   Trig → GPIO26
+                      Echo → ตัวต้านทาน 10k → GPIO33
+                      GPIO33 → ตัวต้านทาน 20k → GND
+Water level module    + → 3.3V       − → GND     S → GPIO35
+ปุ่มหยุดฉุกเฉิน         ขาหนึ่ง → GPIO14          อีกขา → GND
+```
+- **KY-015** คือโมดูล DHT11 ใช้ไฟ 3.3 V ได้ วัดอุณหภูมิ 0–50 °C (±2 °C) ความชื้น 20–90 % (±5 %) พอสำหรับห้องน้ำ ห้ามอ่านถี่กว่าทุก 2 วินาที (โค้ดอ่านทุก 2 วินาทีอยู่แล้ว) ขาบนแผงเรียง S / + (กลาง) / − ดูตัวอักษรบนแผงก่อนต่อเสมอ
+- **Ultrasonic** ใช้แทน PIR เพื่อดูว่ามีคนอยู่ในห้องไหม: ถ้าวัดระยะได้ใกล้กว่า `OCCUPIED_CM` (ตั้งไว้ 60 ซม.) = มีคนยืนอยู่หน้าเซ็นเซอร์
+- Ultrasonic **ต้องใช้ไฟ 5 V** (ขา VIN ของ ESP32 = 5 V จาก USB) และ**ขา Echo ปล่อยไฟ 5 V ออกมา ห้ามต่อเข้า ESP32 ตรงๆ** ต้องผ่านตัวต้านทาน 10k/20k (แรงดันเหลือ 5 × 20/30 = 3.3 V) แบบเดียวกับ divider ของ MQ-137 ส่วนขา Trig รับ 3.3 V จาก ESP32 ได้ ต่อตรงได้
+- ถ้าไม่มีตัวต้านทาน 20k ใช้ 10k สองตัวต่ออนุกรมแทน
+
+**ทดสอบ** (ในโปรเจค hwtest เพิ่ม `lib_deps` แบบเดียวกับ `firmware/gateway/platformio.ini`):
+```cpp
+#include <Arduino.h>
+#include <DHT.h>
+#define DHT_PIN 4
+#define US_TRIG_PIN 26
+#define US_ECHO_PIN 33
+#define LEAK_PIN 35
+#define BUTTON_PIN 14
+DHT dht(DHT_PIN, DHT11);
+
+int readDistanceCm() {
+  digitalWrite(US_TRIG_PIN, LOW);  delayMicroseconds(2);
+  digitalWrite(US_TRIG_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(US_TRIG_PIN, LOW);
+  unsigned long us = pulseIn(US_ECHO_PIN, HIGH, 30000);  // รอไม่เกิน 30 ms
+  if (us == 0) return -1;                                // ไม่มีเสียงสะท้อนกลับ
+  return (int)(us / 58);                                 // แปลงเวลาเป็น ซม.
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(US_TRIG_PIN, OUTPUT);
+  pinMode(US_ECHO_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  analogSetPinAttenuation(LEAK_PIN, ADC_11db);
+  dht.begin();
+}
+void loop() {
+  Serial.printf("temp=%.1f C  hum=%.1f %%  dist=%d cm  leak_adc=%d  button=%s\n",
+                dht.readTemperature(), dht.readHumidity(), readDistanceCm(),
+                analogRead(LEAK_PIN), digitalRead(BUTTON_PIN) == LOW ? "PRESSED" : "-");
+  delay(2000);
+}
+```
+
+**สิ่งที่ต้องเห็นและจด:**
+| ทดสอบ | ผลที่ต้องได้ |
+| --- | --- |
+| KY-015 | อุณหภูมิ 25–35 °C, ความชื้น 40–90% (ถ้าขึ้น `nan` = สายหลวม ต่อผิดขา หรือตั้ง `DHT11` ผิดเป็น `DHT22`) |
+| KY-015 เป่าลมหายใจใส่ | ความชื้นเพิ่มขึ้นภายใน 2–3 รอบ |
+| Ultrasonic | หันไปทางผนังที่วัดด้วยตลับเมตรได้ 100 ซม. ค่าต้องอยู่ประมาณ 95–105 (ถ้าขึ้น −1 ตลอด = Echo/Trig สลับกัน หรือ divider ต่อผิด) |
+| Ultrasonic เอามือบังห่าง 30 ซม. | ค่าประมาณ 30 |
+| Water level แห้ง | ค่าประมาณ 0–300 → **จดไว้** |
+| Water level แตะฟองน้ำเปียก | ค่าประมาณ 1500–3000 → **จดไว้** |
+| ปุ่ม | กดแล้วขึ้น PRESSED |
+
+เอาค่าแห้งกับค่าเปียกมาหาค่ากลาง ใส่ใน `LEAK_THRESHOLD` ของ `include/config.h` (เช่น แห้ง 200 เปียก 2000 → ใส่ 1000)
+
+## ขั้นที่ 4: ใส่โค้ด gateway ลง repo และทดสอบด้วยข้อมูล node ปลอม (อ. 17)
+
+1. `git pull` แล้ว copy `starter-code/firmware/gateway/` ไปไว้ที่ `onbedsystem/firmware/gateway/`
+2. copy `include/secrets.example.h` เป็น `include/secrets.h` แล้วใส่ค่าจริง:
+   - `WIFI_SSID` / `WIFI_PASSWORD` ของ hotspot
+   - `NETPIE_CLIENT_ID` / `NETPIE_TOKEN` / `NETPIE_SECRET` ของ device `gateway`
+   - `DISCORD_WEBHOOK_URL` เว้นว่างไว้ก่อน
+3. ตรวจว่า `git status` **ไม่มี** `secrets.h` (ถูก `.gitignore` ไว้แล้ว) ถ้าเห็นแปลว่ายังไม่มี `.gitignore` ให้บอกไอริณ
+4. เปิดโปรเจค `firmware/gateway` แถบล่างเลือก env **`env:gateway_fake`** แล้ว Upload
+5. **ผลที่ต้องเห็นใน Serial Monitor:**
+   ```
+   === OnBedSystem Gateway ===
+   Gateway MAC: 24:6F:28:12:34:56
+   Connecting WiFi.....
+   WiFi OK  channel=6  IP=192.168.43.120
+   *** FAKE_NODES test mode ***
+   [OTA] ready at 192.168.43.120
+   [MQTT] connecting... OK
+   [NODE] new node registered: WC-1 (key wc1)
+   [ESP-NOW] WC-1 seq=0 people=2 (no MQ-137)
+   [NODE] new node registered: WC-2 (key wc2)
+   [ESP-NOW] WC-2 seq=0 odor=1.20 people=0
+   [FAN] level 2
+   ```
+6. เปิด portal.netpie.io → device `gateway` → ดู **Shadow** ต้องเห็นค่า `wc2_odor`, `wc1_people`, `temp` ฯลฯ อัปเดตทุก 10 วินาที
+7. commit (ไม่รวม secrets):
+   ```bash
+   git add firmware/gateway/platformio.ini firmware/gateway/include/config.h firmware/gateway/include/secrets.example.h firmware/gateway/src/main.cpp
+   git commit -m "gateway: ESP-NOW receive, sensors, NETPIE publish, FreeRTOS tasks"
+   git push
+   ```
+   (ไฟล์ `discord.h` / `discord.cpp` ให้วัตตะนะ commit เอง ถ้ายังไม่มีในเครื่องคุณ ให้ copy จาก starter code มาไว้ก่อนแต่ไม่ต้อง commit)
+
+### โค้ดทำงานยังไง (เปิด `src/main.cpp` อ่านคู่กัน)
+
+| ส่วน | ทำอะไร |
+| --- | --- |
+| 1 ข้อมูลร่วม | `NodeState` เก็บสถานะ node แต่ละตัว, `Snapshot` = ภาพรวมระบบ 1 รอบ (เก็บใน buffer ได้), `rawQueue` และ `stateMutex` ใช้สื่อสารระหว่าง task |
+| 2 หลาย node | `findOrAddNode()` เจอ `node_id` ใหม่ก็ลงทะเบียนเอง (สูงสุด 4) และสร้างชื่อ field `WC-1` → `wc1` อัตโนมัติ = รองรับ node หลายตัวในโค้ด (Scalability 1 คะแนน) |
+| 3 callback | `onDataRecv()` (ESP-NOW เรียก) แค่ copy ข้อความใส่ queue ห้ามทำงานหนัก, `onButton()` ISR ของปุ่มหยุดฉุกเฉิน, `onMqttMessage()` รับคำสั่ง AI |
+| 4 พัดลม | `applyFan()` ตั้ง PWM (กระตุกเต็มแรง 0.5 วินาทีตอนเริ่มหมุน), `fallbackLevel()` เลือกระดับเองจากค่ากลิ่นเมื่อ AI ไม่ตอบ |
+| 5 buffer | `ring[]` เก็บได้ 360 รอบ (1 ชั่วโมง) ตอนเน็ตหลุด เต็มแล้วทับอันเก่าสุด |
+| 6 cloud | `takeSnapshot()` รวบรวมข้อมูล, `publishSnapshot()` ส่งขึ้น shadow + `@msg/onbed/raw` พร้อม `timestamp`, `flushBuffer()` ส่งของค้างทีละ ≤20 รายการ |
+| 7 tasks | `espNowTask` (priority 3), `fanTask` (2), `cloudTask` (1) — ดูข้อ 14 |
+| 8 setup | ตั้งขา, PWM, Wi-Fi (`setSleep(false)` กันพลาดข้อความ ESP-NOW), NTP, ESP-NOW, MQTT, OTA แล้วสร้าง task |
+
+## ขั้นที่ 5: ต่อพัดลม (พ. 18 ถ้ามีของ ถ้าไม่มีทำ ส. 21)
+
+**ขั้นที่ 5.1 ตั้ง buck converter (MP1584EN) ก่อนต่อบอร์ด (ห้ามข้าม):**
+1. ต่อ adapter 12 V เข้าขา **IN+ / IN−** ของ buck converter
+2. ใช้มัลติมิเตอร์วัดขา **OUT+ / OUT−** แล้วใช้ไขควงเล็กหมุนสกรูบน potentiometer (ตัวเล็กบนแผง MP1584EN) ทีละนิดจนได้ **5.0 V**
+3. ถอดปลั๊กก่อนต่อขั้นต่อไป
+
+**ขั้นที่ 5.2 ต่อสาย:**
+```
+Adapter 12V (+) ─┬──────────────── MOSFET module VIN+ (หรือ DC+)
+                 └──────────────── Buck IN+
+Adapter 12V (−) ─┬──────────────── MOSFET module VIN− (หรือ DC−)
+                 └──────────────── Buck IN−
+Buck OUT+ (5.0V) ───────────────── ESP32 VIN
+Buck OUT− ───────────────────────── ESP32 GND
+MOSFET OUT+ ─────────────────────── พัดลม สายแดง
+MOSFET OUT− ─────────────────────── พัดลม สายดำ
+ไดโอด: ขีดขาว (cathode) → สายแดงพัดลม, อีกขา → สายดำพัดลม  (ต่อคร่อมพัดลม)
+ESP32 GPIO25 ────────────────────── MOSFET PWM / TRIG / SIG
+ESP32 GND ───────────────────────── MOSFET GND (ฝั่งสัญญาณ)   ← GND ต้องต่อร่วมกัน
+```
+- **ตอนอัปโหลดโค้ดผ่าน USB ให้ถอดสาย Buck OUT+ ออกจาก VIN ก่อน** ไม่จ่ายไฟสองทางพร้อมกัน
+- ชื่อขาบนโมดูล MOSFET แต่ละรุ่นต่างกันเล็กน้อย ดูตัวหนังสือบนบอร์ด: ฝั่งไฟเข้า (VIN/DC), ฝั่งโหลด (OUT/LOAD), ฝั่งสัญญาณ (PWM/TRIG + GND)
+
+**ขั้นที่ 5.3 ทดสอบ** (ใน hwtest):
+```cpp
+#include <Arduino.h>
+#define FAN_PIN 25
+const uint8_t duty[] = {0, 110, 180, 255};
+void setup() {
+  Serial.begin(115200);
+  ledcSetup(0, 25000, 8);
+  ledcAttachPin(FAN_PIN, 0);
+}
+void loop() {
+  for (int lv = 0; lv < 4; lv++) {
+    if (lv == 1) { ledcWrite(0, 255); delay(500); }  // กระตุกให้เริ่มหมุน
+    ledcWrite(0, duty[lv]);
+    Serial.printf("fan level %d (duty %d)\n", lv, duty[lv]);
+    delay(5000);
+  }
+}
+```
+- พัดลมต้องหยุด → ช้า → กลาง → เร็ว วนไปเรื่อยๆ
+- ถ้าระดับ 1 ไม่หมุน ให้เพิ่มค่า duty ระดับ 1 ใน `FAN_DUTY` ของ `config.h` (เช่น 110 → 140)
+- ถ้าพัดลมหมุนตลอดไม่หยุด แปลว่าต่อขา MOSFET ผิด หรือเป็นรุ่นที่ไม่ใช่ logic-level
+
+## ขั้นที่ 6: ทดสอบ OTA (พ. 18)
+
+OTA = อัปโหลดโค้ดใหม่ผ่าน Wi-Fi โดยไม่ต้องเสียบสาย USB (ข้อ E6)
+
+1. ตั้งรหัส OTA ใน `secrets.h`: `#define OTA_PASSWORD "รหัสที่คุณตั้งเอง"` (ไฟล์นี้ไม่ขึ้น GitHub)
+2. แฟลช `env:gateway_fake` ผ่าน USB หนึ่งครั้ง เพื่อให้รหัสนี้ลงบอร์ด ดู Serial จด IP จากบรรทัด `[OTA] ready at 192.168.x.x`
+3. ถอดสาย USB ออกจากคอม แล้วจ่ายไฟให้บอร์ดด้วยหัวชาร์จมือถือแทน
+4. ให้คอมต่อ Wi-Fi `OnBed-Hotspot` เดียวกับ gateway
+5. แก้ข้อความใน `setup()` ของ `main.cpp` เล็กน้อย เช่น `"=== OnBedSystem Gateway ==="` เป็น `"=== OnBedSystem Gateway v2 ==="` (ไว้ดูว่าโค้ดใหม่ลงจริง)
+6. เปิด terminal ใน VS Code (เมนู Terminal → New Terminal) แล้วพิมพ์ตามระบบของคุณ (แทน `รหัสของคุณ` ด้วยรหัสในข้อ 1):
+   - Windows (PowerShell):
+     ```powershell
+     cd firmware/gateway
+     $env:OTA_PASSWORD="รหัสของคุณ"
+     pio run -e gateway_ota -t upload
+     ```
+   - Mac/Linux:
+     ```bash
+     cd firmware/gateway
+     OTA_PASSWORD="รหัสของคุณ" pio run -e gateway_ota -t upload
+     ```
+   (ถ้าพิมพ์ `pio` แล้วไม่รู้จักคำสั่ง ให้เปิด terminal จากไอคอน PlatformIO → **PlatformIO Core CLI** แทน)
+7. ต้องขึ้น `Uploading: [============================] 100% Done...`
+8. ถ้าขึ้นว่าหา `onbed-gateway.local` ไม่เจอ (เกิดกับ Windows บางเครื่อง) ให้แก้ `upload_port = onbed-gateway.local` ใน `platformio.ini` เป็น IP จากข้อ 2 แล้วทำข้อ 6 ใหม่
+9. เสียบ USB ดู Serial ต้องเห็น `v2` แปลว่า OTA ใช้งานได้
+10. หมายเหตุ: env `gateway_ota` build แบบใช้งานจริง (ไม่มีข้อมูล node ปลอม) หลัง OTA แล้ว gateway จะรอข้อมูลจาก node จริง ถ้ายังอยากทดสอบด้วยข้อมูลปลอมต่อ ให้แฟลช `env:gateway_fake` ผ่าน USB กลับ
+
+## ขั้นที่ 7: ทดสอบความนิ่งและ buffer (พฤ. 19)
+
+1. แฟลช `env:gateway_fake` แล้วเปิดทิ้งไว้ 1 ชั่วโมง ดูว่าไม่รีบูตเอง (ถ้ารีบูต Serial จะขึ้น `=== OnBedSystem Gateway ===` ใหม่)
+2. **ทดสอบ buffer:** ปิด hotspot 2 นาที
+   - Serial ต้องขึ้น `[BUF] offline, buffered 1`, `2`, ... ทุก 10 วินาที
+   - เปิด hotspot กลับ ต้องขึ้น `[MQTT] connecting... OK` แล้ว `[BUF] flushed 12, remaining 0`
+   - ถ้าณัฐณิชาเปิด `collect.py` อยู่ ข้อมูลช่วงที่หลุดจะเข้าไฟล์ CSV ครบ โดยมี `buffered=1`
+3. จดผลลงไฟล์ใหม่ `docs/gateway-tests.md` (ไฟล์นี้ใช้เขียนรายงานข้อ 3.3 และ test plan):
+   ```markdown
+   | วันที่ | ทดสอบ | ทำอะไร | ผลที่ได้ | ผ่าน? |
+   | --- | --- | --- | --- | --- |
+   | 2026-11-19 | รันต่อเนื่อง | gateway_fake เปิด 1 ชม. | ไม่รีบูต ส่งข้อมูลครบ 360 รอบ | ผ่าน |
+   | 2026-11-19 | buffer | ปิด hotspot 2 นาที | buffered 12 รอบ, เปิดกลับ flushed 12 | ผ่าน |
+   ```
+4. commit:
+   ```bash
+   git add firmware/gateway/include/config.h docs/gateway-tests.md
+   git commit -m "gateway: stability and buffer test"
+   git push
+   ```
+
+## ขั้นที่ 8: วันรวมระบบ (ศ. 20)
+
+1. แฟลช **`env:gateway`** (ไม่ใช่ fake) ผ่าน USB
+2. เปิด hotspot → เปิด gateway → รอจนขึ้น `WiFi OK channel=X` → แล้วค่อยเปิด node
+3. Serial ต้องขึ้น `[ESP-NOW] WC-1 ...` และ `[ESP-NOW] WC-2 ...` ทุก 10 วินาที
+4. ค่าใน NETPIE shadow ต้องเป็นค่าจริงจาก node
+5. ถ้า node ส่งไม่ถึง ดูข้อ 11 ในไฟล์ 02 ของสิรวิชญ์ (ส่วนใหญ่ MAC ผิด หรือเปิด node ก่อน gateway ต่อ Wi-Fi)
+
+## ขั้นที่ 9: ติดตั้งจริง + Discord (ส.–อา. 21–22)
+
+1. รับ `DISCORD_WEBHOOK_URL` จากวัตตะนะ ใส่ใน `secrets.h` แล้วแฟลช `env:gateway` (Serial จะขึ้น `[DISCORD] HTTP 204` ทุกครั้งที่ส่งสำเร็จ)
+2. แตะฟองน้ำเปียกบน water level module → ภายในไม่กี่วินาที Discord ต้องได้ข้อความ "ตรวจพบพื้นเปียก" และพอเช็ดแห้งต้องได้ "พื้นแห้งแล้ว"
+3. กดปุ่มหยุดฉุกเฉิน → พัดลมหยุดทันที + Discord แจ้ง กดอีกครั้ง → กลับมาทำงาน
+4. ติดตั้งในห้องน้ำ:
+   - gateway + buck + MOSFET อยู่ในกล่องเดียว ยกสูงจากพื้นอย่างน้อย 1 เมตร ใกล้ปลั๊ก
+   - พัดลมติดที่ช่องระบายอากาศหรือใกล้หน้าต่าง
+   - water level module วางที่พื้นจุดที่น้ำขังบ่อย ใช้สายยาวต่อขึ้นมาที่กล่อง
+   - KY-015 ติดด้านนอกกล่อง ให้สัมผัสอากาศ
+   - Ultrasonic ติดด้านนอกกล่อง หันไปทางที่คนยืน (หน้าโถหรือหน้าอ่าง) ไม่มีของขวางในระยะ 1 เมตร
+   - **ตั้งค่า `OCCUPIED_CM`:** เปิด Serial (หรือดู `dist_cm` บน dashboard) ตอนห้องว่าง จดระยะที่วัดได้ (เช่น ถึงผนัง 150 ซม.) แล้วให้เพื่อนยืนตรงจุดที่คนใช้ห้องน้ำยืน จดระยะ (เช่น 45 ซม.) ตั้ง `OCCUPIED_CM` ใน `include/config.h` เป็นค่ากลาง (เช่น 90) แล้วแฟลชใหม่ (ใช้ OTA ได้)
+
+## ขั้นที่ 10: เปิด TLS (อ. 23–24) ← ข้อ E5
+
+NETPIE ใช้ **port 1884** สำหรับ MQTT แบบ TLS
+
+1. หาใบรับรองของ NETPIE: บนคอม (Mac/Linux หรือ Git Bash บน Windows) รัน
+   ```bash
+   openssl s_client -connect mqtt.netpie.io:1884 -showcerts </dev/null
+   ```
+2. จะเห็นใบรับรองหลายก้อน แต่ละก้อนขึ้นต้น `-----BEGIN CERTIFICATE-----` และจบด้วย `-----END CERTIFICATE-----` ให้ copy **ก้อนสุดท้าย** (ใบของผู้ออกใบรับรอง)
+3. ใส่ใน `NETPIE_CA_CERT` ของ `secrets.h` โดยแต่ละบรรทัดมีเครื่องหมายคำพูดและ `\n` ต่อท้าย:
+   ```cpp
+   #define NETPIE_CA_CERT \
+     "-----BEGIN CERTIFICATE-----\n" \
+     "MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw\n" \
+     "...ทุกบรรทัด...\n" \
+     "-----END CERTIFICATE-----\n"
+   ```
+4. แก้ `#define USE_TLS 0` เป็น `1` ใน `config.h` แล้วแฟลช (ถ้า gateway ติดตั้งอยู่ในห้องน้ำแล้ว ใช้ OTA ตามขั้นที่ 6 ข้อ 6 ได้ ไม่ต้องถอดกล่อง)
+5. Serial ต้องขึ้น `[MQTT] connecting... OK` ถ้าขึ้น `failed, rc=-2` แปลว่าใบรับรองผิด ลอง copy ก้อนอื่น หรือดูว่าเวลา NTP ได้แล้ว (มีข้อความ `waiting for NTP` ก่อน)
+6. ตรวจว่าไม่มีความลับใน repo:
+   ```bash
+   git log -p | grep -iE "password|token|secret|webhooks" | grep -v example
+   ```
+   ไม่ควรเจอค่าจริง ถ้าเจอต้องเปลี่ยนรหัสใหม่ทั้งหมด (Wi-Fi, NETPIE token) เพราะ history ลบไม่หาย
+7. commit (ไม่รวม `secrets.h`):
+   ```bash
+   git add firmware/gateway/include/config.h
+   git commit -m "gateway: enable MQTT over TLS (port 1884)"
+   git push
+   ```
+8. ถ้า TLS ต่อไม่ได้ภายในวันที่ 27 ให้ปิดไว้ (`USE_TLS 0`) แล้วจดใน `docs/gateway-tests.md` ว่าลองอะไรไปแล้ว error อะไร (เช่น `rc=-2`) เอาไปเขียนในรายงานข้อ 3.3 ว่าทำได้บางส่วน (E5 ได้ 1 จาก 2 คะแนน)
+
+## ขั้นที่ 11: ทดสอบความทนทาน (25–27)
+
+ทดสอบกับระบบที่ติดตั้งอยู่ในห้องน้ำจริง ดู Serial ด้วยโน้ตบุ๊ก (เสียบ USB) หรือดูผลจาก dashboard
+จดผลทุกข้อต่อท้าย `docs/gateway-tests.md` (รูปแบบเดียวกับขั้นที่ 7) แล้ว commit
+
+| ทดสอบ | วิธีทำ | ผลที่ต้องได้ |
+| --- | --- | --- |
+| ไฟดับ | ถอดปลั๊ก gateway 10 วินาทีแล้วเสียบ จับเวลา | ภายใน 1 นาที Serial ขึ้น `[MQTT] connecting... OK` และ node กลับมาส่งถึง |
+| เน็ตหลุด | ปิด hotspot 10 นาทีแล้วเปิด | ระหว่างหลุดพัดลมยังเปลี่ยนระดับตามค่ากลิ่น (fallback), Serial ขึ้น `buffered 60`, เปิดกลับแล้วขึ้น `flushed ... remaining 0` |
+| ปุ่มฉุกเฉิน | ทำให้พัดลมเป็นระดับ 3 (ดูแถวถัดไป) แล้วกดปุ่ม | พัดลมหยุดทันที, Discord แจ้ง กดอีกครั้งพัดลมกลับมา |
+| ระดับ 3 นานเกิน | แก้ใน `config.h` ชั่วคราว: `ODOR_HIGH` เป็น `0.5f` (พัดลมจะขึ้นระดับ 3 ทันที) และ `FAN_HIGH_MAX_MS` เป็น `60000` แล้วแฟลช | หลัง 1 นาทีพัดลมลดเป็นระดับ 2 เอง **ทดสอบเสร็จแก้ทั้งสองค่ากลับเป็น `2.5f` และ `(15UL * 60 * 1000)` แล้วแฟลชใหม่** |
+| OTA | อัปโหลดผ่าน OTA ตามขั้นที่ 6 ข้อ 6 ตอนติดตั้งอยู่ (คอมต่อ hotspot เดียวกัน) | รีบูตแล้วทำงานต่อ ไม่ต้องถอดกล่อง |
+
+การทดสอบ "AI หลุด" ทำได้หลังวันที่ 24 (ตอน `service.py` เริ่มรัน) อยู่ในขั้นที่ 13
+
+## ขั้นที่ 12: เตรียมห้องน้ำจำลอง (ส.–อา. 28–29) และย้ายของจริงมาติด (อ. 1 ธ.ค.)
+
+ไอริณทำห้องจำลองตามไฟล์ 01 ขั้นที่ 8 ช่วง 28–29 gateway จริงยังทำงานอยู่ในห้องน้ำจริง จึงเตรียมจุดติดตั้งไว้ก่อน
+
+**ส.–อา. 28–29 (เตรียม):**
+1. วัดขนาดพัดลม แล้วเจาะรูบนผนังด้านข้างห้องจำลองให้พอดี พร้อมรูสกรูยึด 4 มุม
+2. ทำจุดยึดกล่อง gateway ด้านนอกผนัง (เทปโฟมสองหน้าหรือสกรู) ให้ห่างจากพื้นห้องจำลอง
+3. เจาะรูร้อยสายพัดลมและสาย leak sensor จากในห้องจำลองไปที่กล่อง gateway
+4. เจาะช่อง 2 รู (เส้นผ่านศูนย์กลาง ~16 มม. ห่างกัน ~26 มม. ตามตาของ ultrasonic) ที่ผนังด้านหลังห้องจำลอง ให้ ultrasonic มองเข้าไปในห้อง
+
+**อ. 1 ธ.ค. (ย้ายของจริง):**
+1. ถอด gateway, พัดลม และ leak sensor จากห้องน้ำจริง
+2. ติดพัดลมที่รูที่เจาะไว้ ให้ดูดอากาศ**ออก**จากห้อง (ดูลูกศรบนตัวพัดลม)
+3. วาง leak sensor บนพื้นห้องจำลอง ร้อยสายไปที่กล่อง
+4. ติด ultrasonic ที่ช่องผนังด้านหลัง แล้ว**ตั้ง `OCCUPIED_CM` ใหม่**ตามขนาดห้องจำลอง: ดู `dist_cm` ตอนห้องว่าง (เช่น ถึงผนังตรงข้าม 30 ซม.) แล้วเอามือหรือตุ๊กตาวางกลางห้อง (เช่น 12 ซม.) ตั้งเป็นค่ากลาง (เช่น 20) แฟลชผ่าน OTA ได้ จดค่าเดิมไว้เผื่อย้ายกลับ
+5. เสียบไฟ แล้วตรวจ: Serial ขึ้น `[MQTT] connecting... OK`, เอาฟองน้ำเปียกแตะ leak sensor แล้ว Discord แจ้ง, พ่นน้ำยาเช็ดกระจกในห้องจำลองแล้วพัดลมเร่ง, เอามือเข้าไปในห้องจำลอง dashboard ไฟ "มีคนอยู่" ต้องติด
+
+## ขั้นที่ 13: ทดสอบรอบจริง T7, T9, T11, T12, T13 (2–3 ธ.ค.)
+
+ทำตาม `docs/test-plan.md` (ณัฐณิชาเขียนไว้) เฉพาะ 5 ข้อนี้ แต่ละข้อทำ 3 รอบ บนห้องน้ำจำลอง:
+| ID | ทำอะไร |
+| --- | --- |
+| T7 | ปิด hotspot 10 นาทีแล้วเปิด ให้ณัฐณิชาเช็กว่าข้อมูลช่วงหลุดเข้า CSV ครบ (`buffered=1`) |
+| T9 | ถอดปลั๊ก gateway 10 วินาทีแล้วเสียบ จับเวลาจนต่อ NETPIE ได้ |
+| T11 | ให้ณัฐณิชาปิด `service.py` จับเวลาจน dashboard ขึ้น AI ❌ และ Serial ไม่มี `[AI]` แล้วพัดลมยังทำงาน |
+| T12 | กดปุ่มหยุดฉุกเฉินตอนพัดลมระดับ 3 |
+| T13 | อัปโหลด firmware ผ่าน OTA |
+
+เขียนผลจริงเป็นตัวเลขในคอลัมน์ "ผลจริง" ของ `docs/test-plan.md` (เช่น "รอบ 1: 38 วินาที, รอบ 2: 41 วินาที, รอบ 3: 35 วินาที") แล้ว commit
+
+## ข้อ 14: FreeRTOS ในโค้ดนี้ (ข้อ E1) — ต้องอธิบายได้
+
+| Task | Priority | ทำอะไร | ทำไม priority นี้ |
+| --- | --- | --- | --- |
+| `espNowTask` | 3 (สูงสุด) | รอข้อความใน `rawQueue` แล้วแปลง JSON อัปเดตสถานะ node | queue ยาวแค่ 20 ช่อง ถ้าไม่รีบดึง ข้อความจาก node จะล้นและหาย |
+| `fanTask` | 2 | ทุก 0.5 วินาที อ่าน ultrasonic / water level / KY-015 แล้วตัดสินระดับพัดลม | การควบคุมพัดลมและตรวจพื้นเปียกต้องตอบสนองเร็ว ห้ามรอเน็ต |
+| `cloudTask` | 1 (ต่ำสุด) | ต่อ Wi-Fi/MQTT, ส่งข้อมูล, buffer, Discord, OTA | งานเน็ตอาจบล็อกหลายวินาที (TLS, HTTP) ถ้าให้ priority สูงจะไปขวางงานอื่น |
+
+- **queue:** callback ของ ESP-NOW → `xQueueSend` → `espNowTask` รับด้วย `xQueueReceive` (callback ทำงานใน task ของ Wi-Fi จึงห้ามทำงานหนัก)
+- **mutex (`stateMutex`):** ทุก task ที่อ่านหรือเขียนข้อมูลร่วม (`nodes`, `temperature`, `aiFanLevel`) ต้อง `xSemaphoreTake` ก่อน และ `xSemaphoreGive` หลังใช้ กันข้อมูลชนกัน
+- `loop()` ว่าง (`vTaskDelete(NULL)`) เพราะงานทั้งหมดอยู่ใน task
+
+## ข้อ 15: เขียนรายงานข้อ 3.3 Gateway (4–5 ธ.ค.)
+
+เขียนใน Google Doc `OnBedSystem_Final_Report` ใต้หัวข้อ **3.3 Gateway** ยาวประมาณ ¾ หน้า เสร็จภายใน **ส. 5 ธ.ค. 23:59**
+
+เขียน 5 ส่วนตามลำดับนี้ (แก้ตัวเลขให้ตรงของจริง):
+1. **หน้าที่ (2 ประโยค):** "Gateway ใช้ ESP32 รับข้อมูลจาก sensor node ผ่าน ESP-NOW อ่าน KY-015 (อุณหภูมิ/ความชื้น), ultrasonic (ตรวจว่ามีคน) และ water level module (ตรวจพื้นเปียก) ควบคุมพัดลม 3 ระดับด้วย PWM และส่งข้อมูลขึ้น NETPIE ทุก 10 วินาที การควบคุมพัดลมทำที่ gateway เพื่อให้ทำงานได้แม้อินเทอร์เน็ตหลุด"
+2. **FreeRTOS (ข้อ E1):** copy ตาราง task + priority + เหตุผล จากข้อ 14 ของไฟล์นี้ แล้วเขียน 2 ประโยคว่า task สื่อสารกันผ่าน queue และ mutex
+3. **การทำงานเมื่อเน็ตหลุด (ข้อ E4):** 3 ประโยค: buffer 360 รอบ (1 ชั่วโมง), ส่งย้อนหลังพร้อม timestamp ให้ NETPIE เก็บตามเวลาจริง, พัดลมยังทำงานด้วย fallback + ผลทดสอบจาก `docs/gateway-tests.md`
+4. **ความปลอดภัยของการเชื่อมต่อ (ข้อ E5) และ OTA (ข้อ E6):** 3–4 ประโยค: MQTT over TLS port 1884 พร้อม token/secret, เก็บความลับใน `secrets.h` ที่ไม่ขึ้น GitHub, อัปเดต firmware ผ่าน Wi-Fi ด้วย ArduinoOTA ที่มีรหัสผ่าน
+5. **ความปลอดภัยทางไฟฟ้า (ข้อ M7) 2 ประโยค:** ใช้ไฟ DC เท่านั้น, กล่องยกสูงจากพื้น, ปุ่มหยุดฉุกเฉิน, พัดลมระดับสูงสุดไม่เกิน 15 นาที
+
+ใส่รูป 1 รูป: รูปถ่ายกล่อง gateway ที่ติดตั้งแล้ว ใต้รูปเขียน "รูปที่ X gateway และพัดลมที่ติดตั้ง"
+
+เพิ่มใต้หัวข้อ 5 ของรายงาน: ปัญหาที่เจอในส่วน gateway 2–3 บรรทัด (ปัญหา → แก้ยังไง)
+เพิ่มใต้หัวข้อ 6 ของรายงาน: 1 บรรทัดว่าคุณใช้ AI tool ตัวไหนช่วยทำอะไร
+
+## ข้อ 16: คำถามที่อาจารย์น่าจะถาม
+
+1. **ทำไมใช้ queue ไม่เขียนตัวแปรตรงๆ ใน callback?** callback ต้องจบเร็ว และป้องกันข้อมูลชนกันระหว่าง task
+2. **ถ้าเน็ตหลุด ระบบยังทำอะไรได้?** พัดลมยังทำงานจากค่ากลิ่นที่ gateway ได้รับโดยตรง (fallback), แจ้งพื้นเปียกจะรอส่งเมื่อเน็ตกลับ, ข้อมูลเก็บใน buffer ได้ 1 ชั่วโมงแล้วส่งย้อนหลังพร้อม timestamp
+3. **ทำไมต้อง `WiFi.setSleep(false)`?** โหมดประหยัดไฟของ Wi-Fi ทำให้วิทยุปิดเป็นช่วงๆ อาจพลาดข้อความ ESP-NOW
+4. **TLS ป้องกันอะไร?** เข้ารหัสข้อมูลระหว่าง gateway กับ NETPIE และตรวจว่าคุยกับ NETPIE ตัวจริงจากใบรับรอง ส่วน token/secret ยืนยันตัวตน gateway
+5. **ถ้า AI สั่งพัดลมผิด จะเกิดอะไร?** ค่าระดับถูกจำกัด 0–3, มี timeout ระดับสูงสุด 15 นาที, มีปุ่มหยุดฉุกเฉิน
+6. **ทำไมพัดลมใช้ PWM 25 kHz?** สูงกว่าที่หูได้ยิน พัดลมจึงไม่มีเสียงหวีด
+7. **ทำไมใช้ ultrasonic ตรวจว่ามีคน ไม่ใช้ PIR?** ใช้เซ็นเซอร์ที่ยืมได้จากวิชา ultrasonic วัดระยะ ถ้ามีคนยืนใกล้กว่าค่าที่ตั้ง (`OCCUPIED_CM`) ถือว่ามีคน ข้อดีคือคนยืนนิ่งก็ยังตรวจเจอ (PIR ตรวจได้เฉพาะตอนขยับ) ต้องระวังขา Echo ที่ออก 5 V จึงใส่ voltage divider
+8. **KY-015 (DHT11) แม่นพอไหม?** ±2 °C และ ±5 %RH พอสำหรับดูแนวโน้มความชื้นในห้องน้ำและใช้เป็น feature ของ AI ไม่ได้ใช้ควบคุมอะไรที่ต้องแม่นยำสูง

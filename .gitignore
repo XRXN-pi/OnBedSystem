@@ -16,4 +16,4 @@ venv/
 
 # ข้อมูลและโมเดล (เก็บใน Google Drive)
 ai/data/
-ai/models/*.joblib
+ai/models/config.json
