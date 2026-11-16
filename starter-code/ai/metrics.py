@@ -1,8 +1,9 @@
 """คำนวณ metrics จาก data/raw.csv แล้วเขียนผลลง docs/metrics/results.md
 
 วิธีรัน:  python metrics.py
-         python metrics.py data/raw.csv data/manual_counts.csv
-manual_counts.csv (นับคนด้วยมือ) มีคอลัมน์: start,end,manual   เช่น  2026-11-23 10:00,2026-11-23 11:00,37
+         python metrics.py data/raw.csv
+ความแม่นยำการนับคนอ่านจาก docs/metrics/count_test.csv (ผลทดสอบ T1 ของสิรวิชญ์)
+มีคอลัมน์: round,actual,system   เช่น  1,20,19
 """
 import os
 import sys
@@ -11,7 +12,7 @@ import pandas as pd
 
 HERE = os.path.dirname(__file__)
 raw_path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "data", "raw.csv")
-manual_path = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "data", "manual_counts.csv")
+count_path = os.path.join(HERE, "..", "docs", "metrics", "count_test.csv")
 out_path = os.path.join(HERE, "..", "docs", "metrics", "results.md")
 
 df = pd.read_csv(raw_path).sort_values("ts").reset_index(drop=True)
@@ -85,20 +86,15 @@ if os.path.exists(e2e_path):
               f"- {stats(e2e['latency_ms'], ' ms', 0)}", ""]
 
 # ---------- 4. ความแม่นยำการนับคน ----------
-if os.path.exists(manual_path):
-    man = pd.read_csv(manual_path)
-    lines += ["## 4. ความแม่นยำการนับคน (IR break-beam เทียบกับนับด้วยมือ)", "",
-              "| ช่วงเวลา | นับมือ | ระบบนับ | คลาดเคลื่อน |", "| --- | --- | --- | --- |"]
-    errs = []
-    for _, r in man.iterrows():
-        t0 = pd.Timestamp(r["start"], tz="Asia/Bangkok").timestamp()
-        t1 = pd.Timestamp(r["end"], tz="Asia/Bangkok").timestamp()
-        w = live[(live["ts"] >= t0) & (live["ts"] < t1)]
-        system = w[[c for c in w.columns if c.endswith("_people")]].sum().sum()
-        err = abs(system - r["manual"]) / r["manual"] * 100 if r["manual"] else np.nan
-        errs.append(err)
-        lines.append(f"| {r['start']} – {r['end']} | {r['manual']} | {system:.0f} | {err:.1f}% |")
-    lines += ["", f"- ความคลาดเคลื่อน: {stats(pd.Series(errs), '%', 1)}", ""]
+if os.path.exists(count_path):
+    ct = pd.read_csv(count_path)
+    ct["err"] = (ct["system"] - ct["actual"]).abs() / ct["actual"] * 100
+    lines += ["## 4. ความแม่นยำการนับคน (KY-032, ทดสอบ T1)", "",
+              "วิธีวัด: เดินผ่าน KY-032 ของ WC-1 ช้าๆ ครั้งละ 20 ครั้ง (จำนวนจริงที่รู้แน่นอน) เทียบกับจำนวนที่ระบบนับได้ ทำซ้ำหลายรอบ", "",
+              "| รอบ | จำนวนจริง | ระบบนับ | คลาดเคลื่อน |", "| --- | --- | --- | --- |"]
+    for _, r in ct.iterrows():
+        lines.append(f"| {int(r['round'])} | {int(r['actual'])} | {int(r['system'])} | {r['err']:.1f}% |")
+    lines += ["", f"- ความคลาดเคลื่อน: {stats(ct['err'], '%', 1)}", ""]
 
 # ---------- 5. AI ----------
 cfg_path = os.path.join(HERE, "models", "config.json")  # สร้างโดย evaluate.py

@@ -330,7 +330,21 @@ void loop() {
 | T8 | ถอดปลั๊ก node 10 วินาทีแล้วเสียบ จับเวลาจนส่ง OK |
 | T10 | ถอดสาย AO ของ MQ-137 (node WC-2) ดูว่า dashboard/Discord แจ้ง |
 
-เขียนผลจริงเป็นตัวเลขในคอลัมน์ "ผลจริง" ของ `docs/test-plan.md` (เช่น "รอบ 1: 20/20, รอบ 2: 19/20, รอบ 3: 20/20") แล้ว commit
+เขียนผลจริงเป็นตัวเลขในคอลัมน์ "ผลจริง" ของ `docs/test-plan.md` (เช่น "รอบ 1: 20/20, รอบ 2: 19/20, รอบ 3: 20/20")
+
+**ผล T1 ใช้เป็น metric ความแม่นยำการนับคนในรายงานด้วย** ให้บันทึกตัวเลขทั้ง 3 รอบลงไฟล์ใหม่ `docs/metrics/count_test.csv` (`actual` = จำนวนครั้งที่เดินผ่านจริง, `system` = จำนวนที่ dashboard/`people` นับได้):
+```
+round,actual,system
+1,20,20
+2,20,19
+3,20,20
+```
+แล้ว commit:
+```bash
+git add docs/test-plan.md docs/metrics/count_test.csv
+git commit -m "test: node tests T1 T4 T8 T10"
+git push
+```
 
 ## ข้อ 14: แก้ปัญหาที่เจอบ่อย
 
