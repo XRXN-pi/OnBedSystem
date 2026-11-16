@@ -90,7 +90,12 @@
    | `No module named 'chronos'` | ลืม activate venv |
    | ลองทุกอย่างแล้วยังไม่ได้ | แจ้งในกลุ่มวันนี้เลย จะได้มีเวลาแก้ |
 7. ลองรัน `python metrics.py` จะได้ไฟล์ `../docs/metrics/results.md`
-8. **ลบข้อมูลจำลองทิ้งก่อนเก็บข้อมูลจริง:** ลบไฟล์ `ai/data/raw.csv` และ `ai/models/config.json` (โฟลเดอร์ `data/` ถูก `.gitignore` ไว้ ไม่ขึ้น GitHub)
+8. **ลบไฟล์ที่ได้จากข้อมูลจำลองทิ้งก่อนเก็บข้อมูลจริง** (ทั้ง 4 ไฟล์) รันในโฟลเดอร์ `ai/`:
+   ```bash
+   rm data/raw.csv models/config.json models/prediction.png ../docs/metrics/results.md
+   ```
+   - `raw.csv`, `config.json` ถูก `.gitignore` กันไว้ แต่ต้องลบ ไม่งั้นข้อมูลจริงจะต่อท้ายข้อมูลจำลอง
+   - `prediction.png`, `results.md` **ไม่ได้ถูกกันไว้** ถ้าไม่ลบอาจเผลอ commit ผลจากข้อมูลจำลองขึ้น GitHub ทั้งสองไฟล์จะถูกสร้างใหม่จากข้อมูลจริงในขั้นที่ 7 และ 10
 9. commit โค้ด:
    ```bash
    git add ai/*.py ai/requirements.txt tools/
