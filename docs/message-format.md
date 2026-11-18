@@ -13,7 +13,18 @@
 | people | int | จำนวนครั้งที่มีคนเดินผ่านใน 10 วินาทีที่ผ่านมา |
 
 ## 2. Gateway → NETPIE (MQTT, ทุก 10 วินาที)
-(วางตัวอย่าง JSON จากไฟล์ 00 ข้อ 2.3)
+```json
+{"data": {
+  "ts": 1763280000, "ts_ms": 123,
+  "wc1_people": 5, "wc1_seq": 1024, "wc1_recv": 1010, "wc1_online": 1,
+  "wc2_odor": 1.10, "wc2_people": 2, "wc2_seq": 998,  "wc2_recv": 990,  "wc2_online": 1,
+  "temp": 29.5, "hum": 78.0, "occupied": 1, "dist_cm": 45, "leak": 0,
+  "fan_level": 1, "clean_status": "ok", "ai_online": 1, "estop": 0
+ },
+ "timestamp": 1763280000123}
+```
+
+ชื่อ field ของ node สร้างอัตโนมัติจาก `node_id` (`WC-1` → `wc1`) เพิ่ม node ตัวที่ 3 ก็จะได้ `wc3_...` เองโดยไม่ต้องแก้โค้ด gateway
 
 | field | ความหมาย |
 | --- | --- |

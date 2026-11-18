@@ -10,7 +10,7 @@
 | firmware/sensor-node | firmware sensor node (PlatformIO) | สิรวิชญ์ |
 | firmware/gateway | firmware gateway (PlatformIO) | สุรสิทธิ์ |
 | dashboard | การตั้งค่า NETPIE dashboard, schema | วัตตะนะ |
-| ai | เก็บข้อมูล เทรนโมเดล AI service | ณัฐณิชา |
+| ai | เก็บข้อมูล พยากรณ์กลิ่นด้วย Chronos-2 AI service | ณัฐณิชา |
 | tools | เครื่องมือทดสอบ (fake gateway) | วัตตะนะ |
 | docs | เอกสารออกแบบ test plan metrics | ไอริณ, ณัฐณิชา |
 

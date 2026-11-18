@@ -16,3 +16,19 @@
 | Gateway | MOSFET module | OUT+ / OUT− | พัดลมสายแดง / สายดำ | ไดโอดคร่อมพัดลม ขีดขาวไปทางสายแดง |
 | Gateway | Buck converter (MP1584EN) | IN+ / IN− | Adapter 12V + / − | |
 | Gateway | Buck converter (MP1584EN) | OUT+ / OUT− | ESP32 VIN / GND | **ตั้ง 5.0 V ด้วยมัลติมิเตอร์ก่อนต่อ** |
+
+## ผังต่อสาย
+
+![ผังต่อสาย node](img/wiring-node.png)
+
+**รูปที่ 1** ผังต่อสาย sensor node (รูปนี้คือ WC-2 ส่วน WC-1 ไม่มี MQ-137 มีแค่ KY-032)
+
+![ผังต่อสาย gateway](img/wiring-gateway.png)
+
+**รูปที่ 2** ผังต่อสาย gateway
+
+## จุดที่ต้องระวัง
+
+- ขา AO ของ MQ-137 ห้ามต่อเข้า ESP32 ตรง ต้องผ่าน voltage divider (5 V จะทำให้ขาเสีย)
+- GND ของ ESP32 ต้องต่อกับ GND ของ adapter 12 V ไม่งั้น MOSFET สั่งงานไม่ได้
+- ตั้ง buck converter ให้ออก 5.0 V ก่อนต่อเข้า ESP32 และถอดสาย 5 V ออกตอนเสียบ USB อัปโหลดโค้ด
