@@ -3,9 +3,7 @@
 .vscode/
 
 # ความลับ ห้าม commit
-firmware/gateway/include/secrets.h
-ai/config_secrets.py
-tools/gateway_secrets.py
+*secrets.*
 .env
 
 # Python
