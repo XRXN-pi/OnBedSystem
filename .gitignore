@@ -1,7 +1,8 @@
 # PlatformIO / VS Code
 .pio/
 .vscode/
-build
+
+build/
 
 # ความลับ ห้าม commit
 *secrets.*
