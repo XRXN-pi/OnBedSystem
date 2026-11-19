@@ -4,11 +4,10 @@
 // ---------- ขา GPIO ----------
 #define DHT_PIN     4    // KY-015 ขา S (สัญญาณ)
 #define DHT_TYPE    DHT11 // KY-015 ใช้ชิป DHT11
-#define US_TRIG_PIN 26   // Ultrasonic ขา Trig
-#define US_ECHO_PIN 33   // Ultrasonic ขา Echo (ผ่าน voltage divider 10k/20k)
-#define LEAK_PIN    35   // Water level module ขา S (ADC1)
+#define MQ_PIN      34   // MQ-137 ขา AO (ผ่าน voltage divider 10k/20k, ต้องเป็น ADC1)
 #define FAN_PIN    25   // ไป MOSFET module ขา SIG/IN
 #define BUTTON_PIN 14   // ปุ่มหยุดฉุกเฉิน (อีกขาต่อ GND)
+// ultrasonic อยู่ที่ node WC-1 และ water level อยู่ที่ node WC-2 ค่าทั้งสองส่งมาทาง ESP-NOW
 
 // ---------- พัดลม ----------
 #define FAN_CH        0       // ช่อง PWM ของ ESP32
@@ -16,9 +15,17 @@
 static const uint8_t FAN_DUTY[4] = {0, 110, 180, 255};  // ระดับ 0=ปิด 1=low 2=mid 3=high
 #define FAN_HIGH_MAX_MS (15UL * 60 * 1000)  // ระดับ 3 ต่อเนื่องได้ไม่เกิน 15 นาที (ความปลอดภัย M7)
 
+// ---------- MQ-137 ----------
+#define DIVIDER_RATIO 1.5f   // R บน 10k, R ล่าง 20k → (10+20)/20 = 1.5
+#define MQ_VCC        5.0f   // ไฟเลี้ยงโมดูล MQ-137
+// ค่า R0 จาก env:gateway_calibrate ใส่ใน platformio.ini (MQ_R0_VALUE) ถ้าไม่ใส่จะใช้ 1.0
+#ifdef MQ_R0_VALUE
+#define MQ_R0 MQ_R0_VALUE
+#else
+#define MQ_R0 1.0f
+#endif
+
 // ---------- เกณฑ์ ----------
-#define LEAK_THRESHOLD 1500   // ค่า ADC มากกว่านี้ = เปียก (ปรับจากการทดสอบ ไฟล์ 03 ขั้นที่ 3)
-#define OCCUPIED_CM    60     // ultrasonic วัดได้ใกล้กว่านี้ (ซม.) = มีคนอยู่ (ปรับตามจุดติดตั้ง ไฟล์ 03 ขั้นที่ 9)
 #define ODOR_MID  1.5f        // fallback: ค่ากลิ่นเกินนี้ → พัดลมระดับ 2
 #define ODOR_HIGH 2.5f        // fallback: ค่ากลิ่นเกินนี้ → พัดลมระดับ 3
 

@@ -79,8 +79,9 @@ def check_devices(data: dict):
     for key in ("wc1", "wc2"):
         if f"{key}_online" in data and int(data[f"{key}_online"]) == 0:
             alerts.send(f"{key}_offline", nt.msg_node_offline(key))
-        if f"{key}_odor" in data and float(data[f"{key}_odor"]) < 0:
-            alerts.send(f"{key}_fault", nt.msg_sensor_fault(key))
+    # MQ-137 อยู่ที่ gateway ค่า -1 = สาย AO หลุด
+    if "odor" in data and float(data["odor"]) < 0:
+        alerts.send("odor_fault", nt.msg_sensor_fault("gateway"))
 
 
 def on_message(client, userdata, msg):

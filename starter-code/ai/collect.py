@@ -15,8 +15,8 @@ def on_message(client, userdata, msg):
         return
     row = append_row(data)
     flag = " (buffered)" if row.get("buffered") else ""
-    print(f"ts={row.get('ts')} odor={row.get('wc2_odor')} people wc1={row.get('wc1_people')} "
-          f"wc2={row.get('wc2_people')} temp={row.get('temp')}{flag}")
+    print(f"ts={row.get('ts')} odor={row.get('odor')} people={row.get('wc1_people')} "
+          f"temp={row.get('temp')} leak={row.get('leak')}{flag}")
 
 
 if __name__ == "__main__":

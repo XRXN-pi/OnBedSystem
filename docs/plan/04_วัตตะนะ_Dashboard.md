@@ -80,11 +80,10 @@ NETPIE จะเก็บข้อมูลย้อนหลัง (feed) เ�
     "wc1_seq":    {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "wc1_recv":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "wc1_online": {"type": "number", "operation": {"store": {"ttl": "1d"}}},
-    "wc2_odor":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
-    "wc2_people": {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "wc2_seq":    {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "wc2_recv":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "wc2_online": {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "odor":       {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "temp":       {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "hum":        {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "occupied":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
@@ -122,7 +121,7 @@ NETPIE จะเก็บข้อมูลย้อนหลัง (feed) เ�
 ### 4.1 สร้างและผูกข้อมูล
 1. portal.netpie.io → เมนู **Dashboard** (หรือ Freeboard) → สร้างใหม่ ชื่อ `OnBed — ห้องน้ำทดสอบ`
 2. กด **Datasources → ADD** → เลือกชนิด **NETPIE2020** (หรือชนิดที่ผูกกับ device ใน project) → ตั้งชื่อ `gw` → เลือก/ใส่ข้อมูล device **`gateway`** → Save
-3. เวลาเพิ่ม widget ตรงช่อง value ให้กด **`+ DATASOURCE`** แล้วเลือก `gw` → `shadow` → ชื่อ field ระบบจะใส่ path ให้เอง (หน้าตาประมาณ `datasources["gw"]["shadow"]["wc2_odor"]`) ใช้วิธีนี้ดีกว่าพิมพ์เอง จะได้ไม่ผิด syntax
+3. เวลาเพิ่ม widget ตรงช่อง value ให้กด **`+ DATASOURCE`** แล้วเลือก `gw` → `shadow` → ชื่อ field ระบบจะใส่ path ให้เอง (หน้าตาประมาณ `datasources["gw"]["shadow"]["odor"]`) ใช้วิธีนี้ดีกว่าพิมพ์เอง จะได้ไม่ผิด syntax
 4. **ตรวจว่า dashboard ไม่ทำให้ gateway หลุด:** เปิด dashboard ค้างไว้ระหว่าง `fake_gateway.py --live` ทำงาน ถ้า fake_gateway ยังพิมพ์และ shadow ยังอัปเดต แปลว่าใช้ร่วมกันได้
 
 ### 4.2 Layout (จัด 3 แถว)
@@ -138,15 +137,15 @@ NETPIE จะเก็บข้อมูลย้อนหลัง (feed) เ�
 **แถว 2 — แต่ละโซน**
 | Widget | ชนิด | ค่า |
 | --- | --- | --- |
-| กลิ่นโซนโถ (WC-2) | Gauge (min 0.5, max 4) | `wc2_odor` |
-| คนเข้า 10 วินาทีล่าสุด | Text | `wc1_people` |
-| คนเข้าโซนโถ 10 วินาทีล่าสุด | Text | `wc2_people` |
+| ค่ากลิ่นในห้อง | Gauge (min 0.5, max 4) | `odor` (MQ-137 ที่ gateway) |
+| คนเข้าห้องน้ำ 10 วินาทีล่าสุด | Text | `wc1_people` (KY-032 ที่ประตู) |
+| ระยะที่วัดได้ | Text | `dist_cm` (ซม., จาก ultrasonic ของ node WC-1) |
 | สถานะเซ็นเซอร์ | Text | `wc1_online`, `wc2_online`, `ai_online` (ออนไลน์/หลุด) |
 
 **แถว 3 — แนวโน้ม**
 | Widget | ชนิด | ค่า |
 | --- | --- | --- |
-| กราฟกลิ่นย้อนหลัง | Feed View / Chart (ดึงจาก feed) | `wc2_odor` ย้อนหลัง 24 ชม. |
+| กราฟกลิ่นย้อนหลัง | Feed View / Chart (ดึงจาก feed) | `odor` ย้อนหลัง 24 ชม. |
 | อุณหภูมิ | Text / Sparkline | `temp` (°C) |
 | ความชื้น | Text / Sparkline | `hum` (%) |
 
@@ -171,7 +170,7 @@ return "พัดลม: " + names[lv] + stop;
 ```javascript
 var sh = datasources["gw"]["shadow"];
 function st(v) { return v == 1 ? "✅" : "❌"; }
-return "โซนทางเข้า " + st(sh["wc1_online"]) + "   โซนโถ " + st(sh["wc2_online"]) + "   AI " + st(sh["ai_online"]);
+return "ประตู " + st(sh["wc1_online"]) + "   พื้น " + st(sh["wc2_online"]) + "   AI " + st(sh["ai_online"]);
 ```
 (ถ้า path ของ datasource ที่ระบบใส่ให้ในข้อ 4.1 ต่างจากนี้ ให้เปลี่ยน `datasources["gw"]["shadow"]` ให้ตรง)
 
@@ -220,8 +219,8 @@ return "โซนทางเข้า " + st(sh["wc1_online"]) + "   โซน�
 
 ### ส่วนที่ 2: ทดสอบแจ้งเตือนฝั่ง Python (จ. 30 พ.ย. หลังณัฐณิชาเปิด `service.py` วันที่ 29)
 1. ปิดปลั๊ก gateway 6 นาที → channel Discord ต้องได้ "🔴 ระบบขาดการเชื่อมต่อมา 5 นาที..." แล้วเสียบกลับ → ได้ "🟢 ระบบกลับมาออนไลน์แล้ว"
-2. ถอดสาย AO ของ MQ-137 บน node WC-2 → ภายใน 1 นาทีได้ "🟠 เซ็นเซอร์กลิ่นของ WC2 อ่านค่าไม่ได้" แล้วเสียบสายกลับ
-3. ถอดปลั๊ก node WC-1 รอ 2 นาที → ได้ "🟠 เซ็นเซอร์ WC1 ไม่ส่งข้อมูล" แล้วเสียบกลับ
+2. ให้สุรสิทธิ์ถอดสาย AO ของ MQ-137 ที่ gateway → ภายใน 1 นาทีได้ "🟠 เซ็นเซอร์กลิ่นอ่านค่าไม่ได้" แล้วเสียบสายกลับ
+3. ถอดปลั๊ก node WC-1 (ที่ประตู) รอ 2 นาที → ได้ "🟠 เซ็นเซอร์ WC1 ไม่ส่งข้อมูล" แล้วเสียบกลับ
 4. ถ้าข้อไหนไม่ได้ข้อความ ดูหน้าจอ `service.py` ว่าขึ้น `[ALERT ไม่ได้ส่ง ยังไม่มี webhook URL]` ไหม (แปลว่า `config_secrets.py` ของณัฐณิชายังไม่ได้ใส่ `DISCORD_WEBHOOK_URL`) ถ้าขึ้น `[DISCORD] error 404` แปลว่า URL ผิดหรือ webhook ถูกลบ
 5. capture หน้าจอ Discord ที่มีข้อความครบทุกแบบ เก็บไว้ที่ `dashboard/screenshots/discord-alerts.png` แล้ว commit (ใช้ในรายงานข้อ 3.4)
 
@@ -268,7 +267,7 @@ return "โซนทางเข้า " + st(sh["wc1_online"]) + "   โซน�
 | ID | ทำอะไร | ดูอะไร | ใช้เวลา |
 | --- | --- | --- | --- |
 | T3 | วางฟองน้ำเปียกบน leak sensor พร้อมกดจับเวลา | กี่วินาทีจน Discord ได้ "พื้นเปียก" และ dashboard ไฟแดง | 5 นาที |
-| T5 | พ่นน้ำยาเช็ดกระจกในห้องจำลองจนสถานะบน dashboard เป็น 🔴 แล้วยืนหน้า ultrasonic ไว้ (ห่างไม่เกิน 50 ซม.) | ระหว่างที่ `occupied` = 1 ต้อง**ไม่มี**ข้อความ "ควรทำความสะอาด" พอถอยออกจน `occupied` = 0 ข้อความต้องมาภายใน 1–2 นาที | 10 นาที |
+| T5 | พ่นน้ำยาเช็ดกระจกในห้องจำลองจนสถานะบน dashboard เป็น 🔴 แล้วเอามือบังหน้า ultrasonic ของ node WC-1 ไว้ (ใกล้กว่า `OCCUPIED_CM`) | ระหว่างที่ `occupied` = 1 ต้อง**ไม่มี**ข้อความ "ควรทำความสะอาด" พอถอยออกจน `occupied` = 0 ข้อความต้องมาภายใน 1–2 นาที | 10 นาที |
 | T6 | ตั้ง cooldown เป็น 3 นาทีชั่วคราวเพื่อย่นรอบการทดสอบ: บอกณัฐณิชาแก้ `ai/service.py` บรรทัด 36 เป็น `alerts = nt.Notifier(cooldown_sec=180)` แล้วรีสตาร์ท → ทำให้สถานะเป็น 🔴 ค้าง 8 นาที (พ่นน้ำยาซ้ำทุก 2 นาที) → **เสร็จแล้วให้แก้กลับเป็น `nt.Notifier()`** | นับข้อความ "ควรทำความสะอาด" ต้องไม่เกิน 2 ข้อความ และข้อความที่ 2 ห่างจากข้อความแรก ≥ 3 นาที (เป็นโค้ดเส้นเดียวกับที่ใช้งานจริงซึ่งตั้งไว้ 15 นาที) | 10 นาที |
 
 ## ขั้นที่ 10: หาข้อมูลระบบที่คล้ายกัน (28–29)
