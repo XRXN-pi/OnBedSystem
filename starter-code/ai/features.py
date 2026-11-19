@@ -5,13 +5,14 @@ import pandas as pd
 
 
 def to_minutes(df: pd.DataFrame) -> pd.DataFrame:
-    """รวมข้อมูลเป็นรายนาที: odor = ค่าสูงสุดของทุก node ที่มี MQ-137 (เฉลี่ยในนาทีนั้น), people = ผลรวมทุก node"""
+    """รวมข้อมูลเป็นรายนาที: odor = ค่ากลิ่นจาก MQ-137 ของ gateway (เฉลี่ยในนาทีนั้น), people = ผลรวมทุก node"""
     df = df.copy()
     df["time"] = pd.to_datetime(df["ts"], unit="s", utc=True).dt.tz_convert("Asia/Bangkok")
     df = df.set_index("time").sort_index()
     df = df[~df.index.duplicated(keep="last")]
 
-    odor_cols = [c for c in df.columns if c.endswith("_odor")]
+    # MQ-137 อยู่ที่ gateway จึงเป็นคอลัมน์ odor เดี่ยว (ไฟล์เก่าที่เคยมี MQ-137 บน node จะเป็น wcN_odor)
+    odor_cols = ["odor"] if "odor" in df.columns else [c for c in df.columns if c.endswith("_odor")]
     people_cols = [c for c in df.columns if c.endswith("_people")]
     odor = df[odor_cols].apply(pd.to_numeric, errors="coerce")
     odor = odor.where(odor >= 0)  # -1 = เซ็นเซอร์หลุด → ไม่นับ

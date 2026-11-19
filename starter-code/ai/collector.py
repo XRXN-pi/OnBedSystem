@@ -7,9 +7,9 @@ DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "raw.csv")
 
 FIELDS = [
     "ts", "ts_ms", "recv_ts", "buffered",
-    "wc1_odor", "wc1_people", "wc1_seq", "wc1_recv", "wc1_online",
-    "wc2_odor", "wc2_people", "wc2_seq", "wc2_recv", "wc2_online",
-    "temp", "hum", "occupied", "dist_cm", "leak", "fan_level", "clean_status", "ai_online", "estop",
+    "wc1_people", "wc1_seq", "wc1_recv", "wc1_online",
+    "wc2_seq", "wc2_recv", "wc2_online",
+    "odor", "temp", "hum", "occupied", "dist_cm", "leak", "fan_level", "clean_status", "ai_online", "estop",
 ]
 
 
