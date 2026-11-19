@@ -63,34 +63,41 @@ Webhook คือ "ลิงก์ลับ" ของ channel ใน Discord �
 
 NETPIE จะเก็บข้อมูลย้อนหลัง (feed) เฉพาะ field ที่ระบุ `operation.store` ไว้ใน Data Schema ([docs.netpie.io](https://docs.netpie.io/en/device-config.html))
 
-1. เข้า portal.netpie.io ด้วยบัญชีกลุ่ม → project `onbedsystem` → device **`gateway`**
+**ขั้นนี้ไม่ต้องสร้าง project หรือ device ใหม่** สุรสิทธิ์สร้าง project `onbedsystem` และ device `gateway`, `ai-service` ไว้แล้วตามไฟล์ 03 ขั้นที่ 2 ขั้นนี้เป็นการตั้งค่าเพิ่มให้ device `gateway` ที่มีอยู่ ถ้าสร้าง device ใหม่ ค่า Client ID / Token จะไม่ตรงกับที่ใส่ใน gateway และ dashboard จะไม่ได้รับข้อมูล
+
+**ความหมายของ Schema:**
+- โดยปกติ NETPIE เก็บเฉพาะค่าล่าสุดของแต่ละ field (Shadow) ค่าใหม่จะแทนที่ค่าเก่า
+- field ที่ใส่ `operation.store` จะถูกเก็บย้อนหลัง (Feed) ใช้วาดกราฟบน dashboard
+- `"ttl": "1d"` คือเก็บย้อนหลัง 1 วันแล้วลบอัตโนมัติ ตั้งไว้ 1 วันเพื่อให้อยู่ในโควตาฟรีของ NETPIE (พื้นที่ Feed 1,000,000 point-month ต่อเดือน, [quota](https://docs.netpie.io/en/quota-netpie.html)) ข้อมูลระยะยาวสำหรับ AI เก็บในไฟล์ CSV ด้วย `collect.py` แยกต่างหาก
+
+1. ขอข้อมูลล็อกอินบัญชีกลุ่มจากสุรสิทธิ์ เข้า portal.netpie.io → project `onbedsystem` → device **`gateway`** (device ที่มีอยู่แล้ว)
 2. ไปแท็บ **Schema** แล้ววาง JSON นี้ แล้วกด Save:
 ```json
 {
   "additionalProperties": true,
   "properties": {
-    "wc1_people": {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc1_seq":    {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc1_recv":   {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc1_online": {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc2_odor":   {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc2_people": {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc2_seq":    {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc2_recv":   {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "wc2_online": {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "temp":       {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "hum":        {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "occupied":   {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "dist_cm":    {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "leak":       {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "fan_level":  {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "ai_online":  {"type": "number", "operation": {"store": {"ttl": "60d"}}},
-    "estop":      {"type": "number", "operation": {"store": {"ttl": "60d"}}},
+    "wc1_people": {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc1_seq":    {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc1_recv":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc1_online": {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc2_odor":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc2_people": {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc2_seq":    {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc2_recv":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "wc2_online": {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "temp":       {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "hum":        {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "occupied":   {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "dist_cm":    {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "leak":       {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "fan_level":  {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "ai_online":  {"type": "number", "operation": {"store": {"ttl": "1d"}}},
+    "estop":      {"type": "number", "operation": {"store": {"ttl": "1d"}}},
     "clean_status": {"type": "string"}
   }
 }
 ```
-3. `ttl: 60d` = เก็บ 60 วัน (พอถึงวันส่งงาน)
+3. `ttl: 1d` = เก็บย้อนหลัง 1 วัน dashboard แสดงกราฟย้อนหลังได้ 24 ชม.
 4. ถ้าหน้า Schema ฟ้อง error ให้เทียบรูปแบบกับตัวอย่างใน docs.netpie.io หัวข้อ Data Schema
 5. ถ้ามีปุ่มเปิด/ปิด **Feed** ในหน้า device ให้เปิดด้วย
 6. บันทึก JSON นี้เป็นไฟล์ `dashboard/netpie-schema.json` (จะใส่ในรายงานภาคผนวก ค) แล้ว commit ตอนขั้นที่ 5
@@ -291,7 +298,7 @@ return "โซนทางเข้า " + st(sh["wc1_online"]) + "   โซน�
 5. ใส่ลิงก์ทุกระบบในส่วน "อ้างอิง" ท้ายรายงาน ตามเลข [1], [2], ...
 
 ### 11.2 หัวข้อ 3.4 Cloud, dashboard และการแจ้งเตือน (ประมาณ ½ หน้า)
-1. **การเก็บข้อมูล (2 ประโยค):** "gateway ส่งข้อมูลเข้า shadow ของ device บน NETPIE2020 ทุก 10 วินาที และตั้ง Data Schema ให้เก็บทุก field ลง feed 60 วัน ข้อมูลย้อนหลังใช้แสดงกราฟและวิเคราะห์ผล"
+1. **การเก็บข้อมูล (2 ประโยค):** "gateway ส่งข้อมูลเข้า shadow ของ device บน NETPIE2020 ทุก 10 วินาที และตั้ง Data Schema ให้เก็บทุก field ลง feed 1 วันเพื่อแสดงกราฟย้อนหลัง 24 ชม. (อยู่ในโควตาฟรีของ NETPIE) ส่วนข้อมูลระยะยาวสำหรับวิเคราะห์ผลเก็บเป็นไฟล์ CSV ด้วย collect.py"
 2. **Dashboard (3 ประโยค + รูป):** แบ่งเป็น 3 แถว (สถานะ, แต่ละโซน, แนวโน้ม) เหตุผลที่จัดแบบนี้ (สิ่งที่แม่บ้านต้องรู้อยู่บนสุด) ใส่ screenshot 1 รูป ใต้รูปเขียน "รูปที่ X dashboard ของระบบ"
 3. **ผลทดสอบกับคนจริง (2 ประโยค):** สรุปจาก `dashboard/ux-test.md` เช่น "ทดสอบกับผู้ที่ไม่รู้จักระบบ 3 คน ตอบคำถามสถานะห้องน้ำถูก 3/3 หลังปรับปรุง"
 4. **การแจ้งเตือน (ตาราง):**
@@ -313,7 +320,7 @@ return "โซนทางเข้า " + st(sh["wc1_online"]) + "   โซน�
 ## ข้อ 12: คำถามที่อาจารย์น่าจะถาม
 
 1. **Dashboard ได้ข้อมูลมาจากไหน?** gateway ส่งข้อมูลเข้า shadow ของ device `gateway` บน NETPIE ทุก 10 วินาที dashboard อ่านจาก shadow ส่วนกราฟย้อนหลังอ่านจาก feed
-2. **ข้อมูลดิบเก็บที่ไหน?** NETPIE feed (ตาม schema ที่ตั้ง `store` ไว้ 60 วัน) และไฟล์ CSV จาก `collect.py`
+2. **ข้อมูลดิบเก็บที่ไหน?** NETPIE feed เก็บย้อนหลัง 1 วัน (ใช้วาดกราฟ) และไฟล์ CSV จาก `collect.py` เก็บทั้งหมด (ใช้กับ AI และ metrics) ที่ตั้ง feed ไว้ 1 วันเพราะโควตาฟรีของ NETPIE จำกัดพื้นที่ feed ไว้ 1,000,000 point-month
 3. **Discord ส่งข้อความยังไง?** ใช้ webhook: ส่ง HTTPS POST ไปที่ webhook URL ของ channel พร้อม JSON `{"content": "ข้อความ"}` Discord ตอบ 204 เมื่อสำเร็จ ไม่ต้องสร้างบอทหรือ login URL จึงเป็นความลับที่เก็บใน `secrets.h` / `config_secrets.py` ที่ไม่ขึ้น GitHub
 4. **ป้องกันแจ้งเตือนรัวยังไง?** จำเวลาที่ส่งแต่ละเรื่องไว้ เรื่องเดิมไม่ส่งซ้ำภายใน 15 นาที และฝั่ง gateway ส่งเฉพาะตอนสถานะเปลี่ยน (เพิ่งเปียก / เพิ่งแห้ง)
 5. **ทำไมไม่แจ้งตอนมีคนในห้อง?** เช็ก `occupied` จาก ultrasonic ก่อนส่งแจ้งเตือนให้ทำความสะอาด จะได้ไม่เรียกแม่บ้านเข้าไปตอนมีคนใช้
