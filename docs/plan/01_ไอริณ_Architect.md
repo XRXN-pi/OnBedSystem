@@ -108,11 +108,21 @@
 
 ---
 
-#### รูปที่ 1 — `docs/img/wiring-node.png`
+**ต้องวาด 3 รูป ไม่ใช่ 2** ของเดิมมี 2 รูปเพราะตอนนั้น node สองตัวใช้เซ็นเซอร์ชุดเดียวกัน (WC-2 คือ WC-1 ที่เพิ่ม MQ-137) รูปเดียวจึงอธิบายได้ทั้งคู่ ตอนนี้ node สองตัวคนละชุดกันแล้ว ต้องแยกรูป
 
-รูปนี้มี **2 บอร์ด** วาดแยกกันคนละฝั่งของรูป ใส่หัวเรื่องกำกับแต่ละบอร์ดให้ชัด
+| ไฟล์ | เนื้อหา |
+| --- | --- |
+| `docs/img/wiring-node-wc1.png` | node ที่ประตู — KY-032 + ultrasonic |
+| `docs/img/wiring-node-wc2.png` | node ที่พื้น — water level |
+| `docs/img/wiring-gateway.png` | gateway — MQ-137, KY-015, ปุ่ม, พัดลม, ภาคจ่ายไฟ (ทับไฟล์เดิม) |
 
-**บอร์ดซ้าย — หัวเรื่อง "Node WC-1 (ประตู)"** กล่อง ESP32 DevKit ตรงกลาง มี KY-032 อยู่ด้านหนึ่ง และ Ultrasonic HC-SR04 อีกด้านหนึ่ง
+ไฟล์เดิม `docs/img/wiring-node.png` ใช้ไม่ได้แล้ว ลบทิ้งด้วย `git rm docs/img/wiring-node.png`
+
+---
+
+#### รูปที่ 1 — `docs/img/wiring-node-wc1.png`
+
+กล่อง ESP32 DevKit ตรงกลาง มี KY-032 อยู่ด้านหนึ่ง และ Ultrasonic HC-SR04 อีกด้านหนึ่ง ใส่หัวเรื่องรูปว่า "Node WC-1 (ประตู)"
 
 | จาก (อุปกรณ์ · ขา) | ไปยัง (ESP32) | สีเส้น |
 | --- | --- | --- |
@@ -128,7 +138,11 @@
 - วาดตัวต้านทานเป็นสี่เหลี่ยมเล็กคร่อมเส้น เขียนค่า `10k` และ `20k` กำกับ แบบเดียวกับที่คุณวาด divider ของ MQ-137 ในรูปเดิม
 - ใส่หมายเหตุในกล่อง KY-032 ว่า "EN ไม่ต่อ"
 
-**บอร์ดขวา — หัวเรื่อง "Node WC-2 (พื้น)"** กล่อง ESP32 DevKit กับ Water level module
+---
+
+#### รูปที่ 2 — `docs/img/wiring-node-wc2.png`
+
+กล่อง ESP32 DevKit กับ Water level module ใส่หัวเรื่องรูปว่า "Node WC-2 (พื้น)" รูปนี้เส้นน้อยที่สุดในสามรูป มีแค่ 3 เส้น
 
 | จาก (อุปกรณ์ · ขา) | ไปยัง (ESP32) | สีเส้น |
 | --- | --- | --- |
@@ -140,7 +154,7 @@
 
 ---
 
-#### รูปที่ 2 — `docs/img/wiring-gateway.png`
+#### รูปที่ 3 — `docs/img/wiring-gateway.png`
 
 บอร์ดเดียว กล่อง ESP32 DevKit ตรงกลาง ฝั่งซ้ายเป็นเซ็นเซอร์ ฝั่งขวาเป็นภาคกำลัง (เหมือนการจัดวางของรูปเดิม)
 
@@ -178,16 +192,18 @@
 
 ---
 
-**สิ่งที่หายไปจากรูปเดิม (อย่าลืมลบ):** กล่อง MQ-137 ในรูป node, กล่อง Ultrasonic และ Water level ในรูป gateway
+**สิ่งที่หายไปจากรูปเดิม (อย่าลืมลบตอนวาดรูป gateway):** กล่อง Ultrasonic และกล่อง Water level ย้ายไปอยู่บน node แล้ว
 
 **บันทึกและ commit:**
-1. File → Export as → **PNG** → Zoom 200% → Export → บันทึกทับไฟล์เดิมที่ `docs/img/wiring-node.png` และ `docs/img/wiring-gateway.png`
-2. เปิด `docs/wiring.md` ลบย่อหน้าหมายเหตุใต้หัวข้อ "ผังต่อสาย" ที่เขียนว่ารูปยังเป็นชุดเดิม (ขึ้นต้นด้วย `>`)
+1. File → Export as → **PNG** → Zoom 200% → Export → บันทึกเป็น `docs/img/wiring-node-wc1.png`, `docs/img/wiring-node-wc2.png` และทับไฟล์เดิมที่ `docs/img/wiring-gateway.png` แล้วลบ `docs/img/wiring-node.png` ทิ้ง
+2. เปิด `docs/wiring.md` ลบย่อหน้าหมายเหตุใต้หัวข้อ "ผังต่อสาย" ที่ขึ้นต้นด้วย `>` ออก (ไฟล์นั้นอ้างชื่อรูปทั้งสามไว้ให้แล้ว ไม่ต้องแก้ชื่อไฟล์)
 3. ตรวจว่ารูปตรงกับตารางด้านบนในไฟล์นั้นทุกแถว
 4. commit:
    ```bash
    git add docs/img docs/wiring.md
+   git rm docs/img/wiring-node.png
    git commit -m "docs: redraw wiring diagrams for new sensor layout"
+   git push
    git push
    ```
 
