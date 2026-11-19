@@ -1,0 +1,106 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "odor": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "wc1_people": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "temp": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "hum": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "occupied": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "leak": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "fan_level": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "wc1_online": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "wc2_online": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "ai_online": {
+      "type": "number",
+      "operation": {
+        "store": {
+          "ttl": "1d"
+        }
+      }
+    },
+    "estop": {
+      "type": "number"
+    },
+    "dist_cm": {
+      "type": "number"
+    },
+    "wc1_seq": {
+      "type": "number"
+    },
+    "wc1_recv": {
+      "type": "number"
+    },
+    "wc2_seq": {
+      "type": "number"
+    },
+    "wc2_recv": {
+      "type": "number"
+    },
+    "clean_status": {
+      "type": "string"
+    }
+  }
+}
