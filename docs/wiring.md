@@ -2,14 +2,14 @@
 
 | บอร์ด | อุปกรณ์ | ขาอุปกรณ์ | ต่อกับ | หมายเหตุ |
 | --- | --- | --- | --- | --- |
-| Node WC-2 | MQ-137 | VCC | ESP32 VIN (5V) | WC-1 ไม่มี MQ-137 |
-| Node WC-2 | MQ-137 | GND | ESP32 GND | |
-| Node WC-2 | MQ-137 | AO | ตัวต้านทาน 10k → GPIO34, และ GPIO34 → ตัวต้านทาน 20k → GND | voltage divider ลด 5 V เหลือ 3.3 V |
-| Node WC-1, WC-2 | KY-032 | + / GND / OUT | 3.3V / GND / GPIO27 | ขา EN ไม่ต่อ (เสียบ jumper EN ไว้) |
+| Node WC-1 (ประตู) | KY-032 | + / GND / OUT | 3.3V / GND / GPIO27 | ขา EN ไม่ต่อ (เสียบ jumper EN ไว้) |
+| Node WC-1 (ประตู) | Ultrasonic | VCC / GND / Trig | VIN (5V) / GND / GPIO26 | |
+| Node WC-1 (ประตู) | Ultrasonic | Echo | ตัวต้านทาน 10k → GPIO33, และ GPIO33 → ตัวต้านทาน 20k → GND | Echo ออก 5 V ต้องลดเหลือ 3.3 V |
+| Node WC-2 (พื้น) | Water level module | + / − / S | 3.3V / GND / GPIO35 | แผ่นเซ็นเซอร์วางบนพื้น ต่อสายยาวขึ้นมาที่กล่อง node ที่ยกสูง |
+| Gateway | MQ-137 | VCC | ESP32 VIN (5V) | |
+| Gateway | MQ-137 | GND | ESP32 GND | |
+| Gateway | MQ-137 | AO | ตัวต้านทาน 10k → GPIO34, และ GPIO34 → ตัวต้านทาน 20k → GND | voltage divider ลด 5 V เหลือ 3.3 V |
 | Gateway | KY-015 | S / ขากลาง (+) / − | GPIO4 / 3.3V / GND | |
-| Gateway | Ultrasonic | VCC / GND / Trig | VIN (5V) / GND / GPIO26 | |
-| Gateway | Ultrasonic | Echo | ตัวต้านทาน 10k → GPIO33, และ GPIO33 → ตัวต้านทาน 20k → GND | Echo ออก 5 V ต้องลดเหลือ 3.3 V |
-| Gateway | Water level module | + / − / S | 3.3V / GND / GPIO35 | |
 | Gateway | ปุ่มหยุดฉุกเฉิน | ขา 1 / ขา 2 | GPIO14 / GND | |
 | Gateway | MOSFET module | PWM(TRIG) / GND | GPIO25 / GND ของ ESP32 | GND ต้องต่อร่วมกับ adapter |
 | Gateway | MOSFET module | VIN+ / VIN− | Adapter 12V + / − | |
@@ -19,16 +19,24 @@
 
 ## ผังต่อสาย
 
-![ผังต่อสาย node](img/wiring-node.png)
+บอร์ดสามตัวใช้เซ็นเซอร์คนละชุดกัน จึงมีผังแยกกันสามรูป
 
-**รูปที่ 1** ผังต่อสาย sensor node (รูปนี้คือ WC-2 ส่วน WC-1 ไม่มี MQ-137 มีแค่ KY-032)
+> **รูปยังอยู่ระหว่างวาดใหม่** ชุดเดิมวาดไว้ตอนที่ MQ-137 อยู่บน node และ ultrasonic กับ water level อยู่บน gateway ซึ่งย้ายที่กันหมดแล้ว **ระหว่างนี้ให้ยึดตารางด้านบนเป็นหลักเวลาต่อสาย**
+
+![ผังต่อสาย node WC-1](img/wiring-node-wc1.png)
+
+**รูปที่ 1** ผังต่อสาย node WC-1 (ประตู) — KY-032 และ ultrasonic
+
+![ผังต่อสาย node WC-2](img/wiring-node-wc2.png)
+
+**รูปที่ 2** ผังต่อสาย node WC-2 (พื้น) — water level module
 
 ![ผังต่อสาย gateway](img/wiring-gateway.png)
 
-**รูปที่ 2** ผังต่อสาย gateway
+**รูปที่ 3** ผังต่อสาย gateway — MQ-137, KY-015, ปุ่มหยุดฉุกเฉิน, พัดลมและภาคจ่ายไฟ
 
 ## จุดที่ต้องระวัง
 
-- ขา AO ของ MQ-137 ห้ามต่อเข้า ESP32 ตรง ต้องผ่าน voltage divider (5 V จะทำให้ขาเสีย)
+- ขา AO ของ MQ-137 และขา Echo ของ ultrasonic ห้ามต่อเข้า ESP32 ตรง ต้องผ่าน voltage divider (5 V จะทำให้ขาเสีย)
 - GND ของ ESP32 ต้องต่อกับ GND ของ adapter 12 V ไม่งั้น MOSFET สั่งงานไม่ได้
 - ตั้ง buck converter ให้ออก 5.0 V ก่อนต่อเข้า ESP32 และถอดสาย 5 V ออกตอนเสียบ USB อัปโหลดโค้ด

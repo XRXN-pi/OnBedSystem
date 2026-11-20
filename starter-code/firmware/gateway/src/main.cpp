@@ -32,8 +32,6 @@ struct NodeState {
   bool used = false;
   char id[12] = "";       // เช่น "WC-1"
   char key[12] = "";      // เช่น "wc1" ใช้เป็นชื่อ field บน cloud
-  float odor = 0;
-  bool hasOdor = false;       // node นี้มี MQ-137 ไหม (node ที่ไม่มีจะไม่ส่ง field odor มา)
   uint32_t peopleAccum = 0;  // จำนวนคนสะสมตั้งแต่ส่งขึ้น cloud ครั้งก่อน
   uint32_t lastSeq = 0;
   uint32_t received = 0;     // จำนวนข้อความที่ได้รับทั้งหมดตั้งแต่เปิดเครื่อง
@@ -42,8 +40,6 @@ struct NodeState {
 
 // ภาพรวมระบบ ณ เวลาหนึ่ง (เก็บใน buffer ได้)
 struct NodeSnap {
-  float odor;
-  bool hasOdor;
   uint16_t people;
   uint32_t seq;
   uint32_t recv;
@@ -53,15 +49,16 @@ struct Snapshot {
   uint32_t ts;  // เวลา (Unix time, วินาที)
   uint16_t ms;  // มิลลิวินาที (ใช้วัด latency)
   NodeSnap node[MAX_NODES];
-  float temp, hum;
+  float odor, temp, hum;
   uint16_t dist;
   uint8_t occupied, leak, fan, status, aiOnline, estop;
 };
 
 NodeState nodes[MAX_NODES];
 float temperature = NAN, humidity = NAN;
-int occupiedState = 0, leakState = 0;
-int distCm = -1;              // ระยะจาก ultrasonic (-1 = อ่านไม่ได้)
+float odorValue = -1;         // ค่ากลิ่นจาก MQ-137 ของ gateway (-1 = เซ็นเซอร์หลุด)
+int occupiedState = 0, leakState = 0;   // ส่งมาจาก node WC-1 และ WC-2
+int distCm = -1;              // ระยะจาก ultrasonic ของ node WC-1 (-1 = อ่านไม่ได้)
 volatile int fanLevel = 0;
 int aiFanLevel = -1;          // ระดับพัดลมที่ AI สั่งล่าสุด (-1 = ยังไม่เคยได้รับ)
 uint32_t lastAiCmdMs = 0;
@@ -158,16 +155,27 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len) {
 // ส่วนที่ 4: พัดลม
 // =====================================================================
 
-// วัดระยะด้วย ultrasonic (ซม.) คืน -1 ถ้าไม่มีเสียงสะท้อนกลับภายในเวลา (ไกลเกิน ~5 เมตร หรือสายหลุด)
-int readDistanceCm() {
-  digitalWrite(US_TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  digitalWrite(US_TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(US_TRIG_PIN, LOW);
-  unsigned long us = pulseIn(US_ECHO_PIN, HIGH, 30000);  // รอไม่เกิน 30 ms
-  if (us == 0) return -1;
-  return (int)(us / 58);  // เสียงเดินทางไป-กลับ 58 µs ต่อ 1 ซม.
+// แรงดันที่ขา AO ของโมดูล MQ-137 (V) เฉลี่ย 20 ครั้งให้ค่านิ่ง
+float readSensorVolt() {
+  uint32_t sum = 0;
+  for (int i = 0; i < 20; i++) {
+    sum += analogReadMilliVolts(MQ_PIN);
+    delayMicroseconds(500);
+  }
+  float vPin = sum / 20.0f / 1000.0f;  // แรงดันที่ขา ESP32
+  return vPin * DIVIDER_RATIO;         // คูณกลับ → แรงดันจริงที่ขา AO
+}
+
+// ค่า Rs ของเซ็นเซอร์แบบไม่มีหน่วย (ไม่ต้องรู้ค่า RL เพราะตัดกันตอนหารด้วย R0)
+float readRs(float v) {
+  return (MQ_VCC - v) / v;
+}
+
+// odor = R0 / Rs → อากาศสะอาด ≈ 1.0, ยิ่งเหม็นยิ่งมากกว่า 1, -1 = สายหลุด
+float readOdor() {
+  float v = readSensorVolt();
+  if (v < 0.05f) return -1.0f;
+  return MQ_R0 / readRs(v);
 }
 
 int fallbackLevel(float maxOdor) {
@@ -217,14 +225,13 @@ Snapshot takeSnapshot() {
   for (int i = 0; i < MAX_NODES; i++) {
     NodeState &n = nodes[i];
     if (!n.used) continue;
-    s.node[i].odor = n.odor;
-    s.node[i].hasOdor = n.hasOdor;
     s.node[i].people = n.peopleAccum;
     s.node[i].seq = n.lastSeq;
     s.node[i].recv = n.received;
     s.node[i].online = (now - n.lastSeenMs < NODE_TIMEOUT_MS) ? 1 : 0;
     n.peopleAccum = 0;  // เริ่มนับรอบใหม่
   }
+  s.odor = odorValue;
   s.temp = temperature;
   s.hum = humidity;
   s.occupied = occupiedState;
@@ -244,12 +251,13 @@ void snapshotToJson(const Snapshot &s, JsonObject d, bool buffered) {
   for (int i = 0; i < MAX_NODES; i++) {
     if (!nodes[i].used) continue;
     String k = nodes[i].key;
-    if (s.node[i].hasOdor) d[k + "_odor"] = s.node[i].odor;  // node ที่ไม่มี MQ-137 ไม่ส่งค่ากลิ่น
-    d[k + "_people"] = s.node[i].people;
+    if (s.node[i].people > 0 || strcmp(nodes[i].id, "WC-1") == 0)
+      d[k + "_people"] = s.node[i].people;   // เฉพาะ node ที่มี KY-032
     d[k + "_seq"] = s.node[i].seq;
     d[k + "_recv"] = s.node[i].recv;
     d[k + "_online"] = s.node[i].online;
   }
+  d["odor"] = roundf(s.odor * 100) / 100.0f;   // MQ-137 ของ gateway เอง
   if (!isnan(s.temp)) d["temp"] = roundf(s.temp * 10) / 10.0f;
   if (!isnan(s.hum)) d["hum"] = roundf(s.hum * 10) / 10.0f;
   d["occupied"] = s.occupied;
@@ -327,36 +335,45 @@ void espNowTask(void *) {
 
     xSemaphoreTake(stateMutex, portMAX_DELAY);
     NodeState *n = findOrAddNode(id);
+    bool leakNow = false, hasLeak = false;
     if (n) {
-      if (doc["odor"].is<float>()) {
-        n->odor = doc["odor"];
-        n->hasOdor = true;
-      }
       n->peopleAccum += doc["people"] | 0;
+      if (doc["occupied"].is<int>()) {
+        occupiedState = doc["occupied"] | 0;
+        distCm = doc["dist_cm"] | 0;
+      }
+      if (doc["leak"].is<int>()) {
+        hasLeak = true;
+        leakNow = (doc["leak"] | 0) != 0;
+        if (leakNow && !leakState) leakAlertPending = true;   // เพิ่งเปียก
+        if (!leakNow && leakState) dryAlertPending = true;    // เพิ่งแห้ง
+        leakState = leakNow ? 1 : 0;
+      }
       n->lastSeq = doc["seq"] | 0;
       n->received++;
       n->lastSeenMs = millis();
     }
     xSemaphoreGive(stateMutex);
     if (n) {
-      if (doc["odor"].is<float>())
-        Serial.printf("[ESP-NOW] %s seq=%u odor=%.2f people=%u\n", id, (unsigned)(doc["seq"] | 0),
-                      (float)doc["odor"], (unsigned)(doc["people"] | 0));
+      if (hasLeak)
+        Serial.printf("[ESP-NOW] %s seq=%u leak=%d\n", id, (unsigned)(doc["seq"] | 0), leakNow ? 1 : 0);
       else
-        Serial.printf("[ESP-NOW] %s seq=%u people=%u (no MQ-137)\n", id, (unsigned)(doc["seq"] | 0),
-                      (unsigned)(doc["people"] | 0));
+        Serial.printf("[ESP-NOW] %s seq=%u people=%u occupied=%d dist=%d\n", id,
+                      (unsigned)(doc["seq"] | 0), (unsigned)(doc["people"] | 0),
+                      (int)(doc["occupied"] | 0), (int)(doc["dist_cm"] | 0));
     }
   }
 }
 
-// Priority 2: อ่านเซ็นเซอร์ของ gateway (ultrasonic, water level, KY-015) + คุมพัดลม — ต้องตอบสนองทันทีโดยไม่รอเน็ต
+// Priority 2: อ่านเซ็นเซอร์ของ gateway (MQ-137, KY-015) + คุมพัดลม — ต้องตอบสนองทันทีโดยไม่รอเน็ต
 void fanTask(void *) {
   uint32_t lastDhtMs = 0, highSinceMs = 0;
-  int prevLeak = 0;
   for (;;) {
-    int dist = readDistanceCm();
-    int occupied = (dist > 0 && dist < OCCUPIED_CM) ? 1 : 0;
-    int leak = analogRead(LEAK_PIN) > LEAK_THRESHOLD ? 1 : 0;
+#ifdef FAKE_NODES
+    float odor = 1.0f + (esp_random() % 150) / 100.0f;   // โหมดทดสอบ ไม่มี MQ-137 จริง
+#else
+    float odor = readOdor();
+#endif
     float t = NAN, h = NAN;
     if (millis() - lastDhtMs >= 2000) {  // DHT11 อ่านได้ไม่ถี่กว่า 1 วินาที อ่านทุก 2 วินาทีพอ
       lastDhtMs = millis();
@@ -365,19 +382,15 @@ void fanTask(void *) {
     }
 
     xSemaphoreTake(stateMutex, portMAX_DELAY);
-    occupiedState = occupied;
-    distCm = dist;
-    leakState = leak;
+    odorValue = odor;
     if (!isnan(t) && !isnan(h)) {
       temperature = t;
       humidity = h;
     }
-    float maxOdor = 0;
     uint32_t now = millis();
-    for (auto &n : nodes)
-      if (n.used && n.hasOdor && now - n.lastSeenMs < NODE_TIMEOUT_MS && n.odor > maxOdor) maxOdor = n.odor;
     bool aiFresh = aiFanLevel >= 0 && now - lastAiCmdMs < AI_TIMEOUT_MS;
-    int target = aiFresh ? aiFanLevel : fallbackLevel(maxOdor);  // AI ไม่ตอบ → ตัดสินใจเอง
+    // odor = -1 แปลว่าเซ็นเซอร์หลุด ให้พัดลมอยู่ระดับ 1 ไว้ก่อน ไม่เร่งมั่ว
+    int target = aiFresh ? aiFanLevel : fallbackLevel(odor < 0 ? 0 : odor);
     xSemaphoreGive(stateMutex);
 
     // ความปลอดภัย: ระดับสูงสุดต่อเนื่องนานเกินไป → ลดลงเหลือระดับ 2
@@ -389,10 +402,6 @@ void fanTask(void *) {
     }
     if (emergencyStop) target = 0;
     applyFan(target);
-
-    if (leak && !prevLeak) leakAlertPending = true;   // เพิ่งเปียก
-    if (!leak && prevLeak) dryAlertPending = true;    // เพิ่งแห้ง
-    prevLeak = leak;
 
     vTaskDelay(pdMS_TO_TICKS(500));
   }
@@ -442,14 +451,15 @@ void fakeNodeTask(void *) {
   uint32_t seq = 0;
   for (;;) {
     RawPacket p;
-    // WC-1 (ทางเข้า) มีแค่ KY-032 → ไม่มี odor
-    p.len = snprintf((char *)p.data, sizeof(p.data), "{\"node_id\":\"WC-1\",\"seq\":%u,\"people\":%u}",
-                     (unsigned)seq, (unsigned)(esp_random() % 4));
-    xQueueSend(rawQueue, &p, 0);
-    // WC-2 (โซนโถ) มี MQ-137 + KY-032
+    // WC-1 (ประตู) — KY-032 นับคน + ultrasonic
+    int fakeDist = 20 + esp_random() % 120;
     p.len = snprintf((char *)p.data, sizeof(p.data),
-                     "{\"node_id\":\"WC-2\",\"seq\":%u,\"odor\":%.2f,\"people\":%u}",
-                     (unsigned)seq, 1.0f + (esp_random() % 150) / 100.0f, (unsigned)(esp_random() % 4));
+                     "{\"node_id\":\"WC-1\",\"seq\":%u,\"people\":%u,\"occupied\":%d,\"dist_cm\":%d}",
+                     (unsigned)seq, (unsigned)(esp_random() % 4), fakeDist < 60 ? 1 : 0, fakeDist);
+    xQueueSend(rawQueue, &p, 0);
+    // WC-2 (พื้น) — water level
+    p.len = snprintf((char *)p.data, sizeof(p.data), "{\"node_id\":\"WC-2\",\"seq\":%u,\"leak\":%u}",
+                     (unsigned)seq, (unsigned)(esp_random() % 10 == 0 ? 1 : 0));
     xQueueSend(rawQueue, &p, 0);
     seq++;
     vTaskDelay(pdMS_TO_TICKS(10000));
@@ -466,11 +476,20 @@ void setup() {
   delay(500);
   Serial.println("\n=== OnBedSystem Gateway ===");
 
-  pinMode(US_TRIG_PIN, OUTPUT);
-  pinMode(US_ECHO_PIN, INPUT);
+  analogSetPinAttenuation(MQ_PIN, ADC_11db);  // ให้อ่านแรงดันได้ถึง ~3.1 V
+
+#ifdef CALIBRATE
+  // โหมด calibrate: พิมพ์ค่า Rs ทุก 1 วินาที ไม่ต่อเน็ต ไม่คุมพัดลม
+  // วางเซ็นเซอร์ในอากาศสะอาด รอ 30 นาทีให้ค่านิ่ง แล้วจดค่า Rs ไปใส่ MQ_R0_VALUE ใน platformio.ini
+  Serial.println("*** CALIBRATE mode: วางในอากาศสะอาด รอค่านิ่งแล้วจดค่า Rs ***");
+  for (;;) {
+    float v = readSensorVolt();
+    Serial.printf("V=%.3f  Rs=%.4f\n", v, v > 0.05f ? readRs(v) : -1.0f);
+    delay(1000);
+  }
+#endif
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), onButton, FALLING);
-  analogSetPinAttenuation(LEAK_PIN, ADC_11db);
   ledcSetup(FAN_CH, FAN_PWM_FREQ, 8);
   ledcAttachPin(FAN_PIN, FAN_CH);
   ledcWrite(FAN_CH, 0);

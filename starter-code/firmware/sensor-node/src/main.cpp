@@ -1,5 +1,7 @@
 // OnBedSystem — Sensor Node
-// นับคนเดินผ่าน (KY-032) + อ่านค่ากลิ่น (MQ-137 เฉพาะ node ที่ HAS_MQ=1) แล้วส่งให้ gateway ผ่าน ESP-NOW ทุก 10 วินาที
+// WC-1 (ประตู): นับคนด้วย KY-032 (ISR) + ตรวจว่ามีคนอยู่ในห้องด้วย ultrasonic
+// WC-2 (พื้น) : ตรวจพื้นเปียกด้วย water level module และส่งทันทีเมื่อสถานะเปลี่ยน
+// ทั้งคู่ส่งให้ gateway ผ่าน ESP-NOW ทุก 10 วินาที firmware เดียวกัน ต่างกันแค่ env ใน platformio.ini
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -9,6 +11,7 @@
 #include "config.h"
 
 // ===== ส่วนที่ 1: นับคนด้วย interrupt (E2) =====
+#if HAS_BEAM
 volatile uint32_t beamCount = 0;      // จำนวนครั้งที่มีคนผ่านหน้า KY-032
 volatile uint32_t lastBeamMs = 0;     // เวลาที่นับครั้งล่าสุด (ใช้ debounce)
 portMUX_TYPE beamMux = portMUX_INITIALIZER_UNLOCKED;
@@ -39,33 +42,31 @@ void returnBeamCount(uint32_t n) {
   beamCount += n;
   portEXIT_CRITICAL(&beamMux);
 }
+#endif
 
-// ===== ส่วนที่ 2: อ่านค่ากลิ่น =====
-// แรงดันที่ขา AO ของโมดูล (V) เฉลี่ย 20 ครั้งให้ค่านิ่ง
-float readSensorVolt() {
-  uint32_t sum = 0;
-  for (int i = 0; i < 20; i++) {
-    sum += analogReadMilliVolts(MQ_PIN);
-    delay(2);
-  }
-  float vPin = sum / 20.0f / 1000.0f;  // แรงดันที่ขา ESP32
-  return vPin * DIVIDER_RATIO;         // คูณกลับ → แรงดันจริงที่ขา AO
+// ===== ส่วนที่ 2: ultrasonic (มีคนอยู่ในห้องไหม) =====
+#if HAS_ULTRASONIC
+// คืนระยะเป็นเซนติเมตร, -1 = ไม่มีเสียงสะท้อนกลับ (ไกลเกินหรือต่อสายผิด)
+int readDistanceCm() {
+  digitalWrite(US_TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(US_TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(US_TRIG_PIN, LOW);
+  unsigned long us = pulseIn(US_ECHO_PIN, HIGH, 30000);  // รอไม่เกิน 30 ms
+  if (us == 0) return -1;
+  return (int)(us / 58);                                 // แปลงเวลาเป็น ซม.
 }
+#endif
 
-// ค่า Rs ของเซ็นเซอร์แบบไม่มีหน่วย (ไม่ต้องรู้ค่า RL เพราะตัดกันตอนหารด้วย R0)
-float readRs(float v) {
-  return (MQ_VCC - v) / v;
+// ===== ส่วนที่ 3: water level (พื้นเปียกไหม) =====
+#if HAS_LEAK
+int readLeak() {
+  return analogRead(LEAK_PIN) > LEAK_THRESHOLD ? 1 : 0;
 }
+#endif
 
-// odor = R0 / Rs  → อากาศสะอาด ≈ 1.0, ยิ่งเหม็นยิ่งมากกว่า 1
-// คืน -1 ถ้าสายหลุด (แรงดันเกือบ 0)
-float readOdor() {
-  float v = readSensorVolt();
-  if (v < 0.05f) return -1.0f;
-  return MQ_R0 / readRs(v);
-}
-
-// ===== ส่วนที่ 3: ESP-NOW + ส่งซ้ำ (E4 ฝั่ง node) =====
+// ===== ส่วนที่ 4: ESP-NOW + ส่งซ้ำ (E4 ฝั่ง node) =====
 volatile bool sendDone = false;
 volatile bool sendOk = false;
 uint32_t seq = 0;
@@ -138,71 +139,111 @@ bool sendWithRetry(const uint8_t *data, size_t len) {
   return false;
 }
 
-// ===== ส่วนที่ 4: setup / loop =====
+// ===== ส่วนที่ 5: setup / loop =====
 uint32_t lastReportMs = 0;
+uint32_t lastPollMs = 0;
 
-void setup() {
-  Serial.begin(115200);
-  delay(500);
-  Serial.printf("\n=== Sensor node %s (MQ-137: %s) ===\n", NODE_ID, HAS_MQ ? "yes" : "no");
-
-#if HAS_MQ
-  analogSetPinAttenuation(MQ_PIN, ADC_11db);  // ให้อ่านแรงดันได้ถึง ~3.1 V
+#if HAS_ULTRASONIC
+int occupiedState = 0;
+int distCm = -1;
+#endif
+#if HAS_LEAK
+int leakState = 0;
 #endif
 
-  pinMode(BEAM_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(BEAM_PIN), onBeamBreak, FALLING);
-
-  WiFi.mode(WIFI_STA);
-  Serial.print("My MAC: ");
-  Serial.println(WiFi.macAddress());
-
-#ifndef CALIBRATE
-  findGatewayChannel();
-#endif
-  lastReportMs = millis();
-}
-
-void loop() {
-#ifdef CALIBRATE
-  // โหมด calibrate: พิมพ์ค่า Rs ทุก 1 วินาที ไม่ส่งข้อมูล
-  float v = readSensorVolt();
-  Serial.printf("V=%.3f  Rs=%.4f  beam=%u\n", v, v > 0.05f ? readRs(v) : -1.0f, beamCount);
-  delay(1000);
-  return;
-#endif
-
-  if (millis() - lastReportMs < REPORT_INTERVAL_MS) {
-    delay(10);
-    return;
-  }
-  lastReportMs = millis();
-
+// สร้างข้อความแล้วส่ง (ใช้ทั้งรอบปกติทุก 10 วินาที และตอนพื้นเปลี่ยนสถานะ)
+void buildAndSend(const char *reason) {
+#if HAS_BEAM
   uint32_t people = takeBeamCount();
+#endif
 
   JsonDocument doc;
   doc["node_id"] = NODE_ID;
   doc["seq"] = seq;
-#if HAS_MQ
-  float odor = readOdor();
-  doc["odor"] = roundf(odor * 100) / 100.0f;  // node ที่ไม่มี MQ-137 จะไม่มี field นี้
-#endif
+#if HAS_BEAM
   doc["people"] = people;
+#endif
+#if HAS_ULTRASONIC
+  doc["occupied"] = occupiedState;
+  doc["dist_cm"] = distCm < 0 ? 0 : distCm;
+#endif
+#if HAS_LEAK
+  doc["leak"] = leakState;
+#endif
 
-  char buf[128];
+  char buf[160];
   size_t len = serializeJson(doc, buf);
   bool ok = sendWithRetry((uint8_t *)buf, len);
-  Serial.printf("%s  %s\n", buf, ok ? "OK" : "FAILED");
+  Serial.printf("%s  %s%s\n", buf, ok ? "OK" : "FAILED", reason);
   seq++;
 
   if (ok) {
     failStreak = 0;
   } else {
+#if HAS_BEAM
     returnBeamCount(people);  // เก็บจำนวนคนไว้ส่งรอบหน้า
+#endif
     if (++failStreak >= FAILS_BEFORE_RESCAN) {
       Serial.println("Gateway unreachable, rescanning channel...");
       findGatewayChannel();
       failStreak = 0;
     }
   }
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+  Serial.printf("\n=== Sensor node %s (KY-032: %s, ultrasonic: %s, water level: %s) ===\n",
+                NODE_ID, HAS_BEAM ? "yes" : "no", HAS_ULTRASONIC ? "yes" : "no", HAS_LEAK ? "yes" : "no");
+
+#if HAS_BEAM
+  pinMode(BEAM_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BEAM_PIN), onBeamBreak, FALLING);
+#endif
+#if HAS_ULTRASONIC
+  pinMode(US_TRIG_PIN, OUTPUT);
+  pinMode(US_ECHO_PIN, INPUT);
+#endif
+#if HAS_LEAK
+  analogSetPinAttenuation(LEAK_PIN, ADC_11db);  // ให้อ่านแรงดันได้ถึง ~3.1 V
+#endif
+
+  WiFi.mode(WIFI_STA);
+  Serial.print("My MAC: ");
+  Serial.println(WiFi.macAddress());
+
+  findGatewayChannel();
+  lastReportMs = millis();
+  lastPollMs = millis();
+}
+
+void loop() {
+  // --- อ่านเซ็นเซอร์ทุก 0.5 วินาที ---
+  if (millis() - lastPollMs >= SENSOR_POLL_MS) {
+    lastPollMs = millis();
+
+#if HAS_ULTRASONIC
+    distCm = readDistanceCm();
+    occupiedState = (distCm > 0 && distCm < OCCUPIED_CM) ? 1 : 0;
+#endif
+
+#if HAS_LEAK
+    int leak = readLeak();
+    if (leak != leakState) {
+      // พื้นเพิ่งเปียกหรือเพิ่งแห้ง ส่งทันทีไม่รอครบ 10 วินาที เพื่อให้ gateway แจ้ง Discord ได้ทัน
+      leakState = leak;
+      buildAndSend(leak ? "  (leak!)" : "  (dry)");
+      lastReportMs = millis();
+    }
+#endif
+  }
+
+  // --- ส่งตามรอบปกติทุก 10 วินาที ---
+  if (millis() - lastReportMs >= REPORT_INTERVAL_MS) {
+    lastReportMs = millis();
+    buildAndSend("");
+  }
+
+  delay(10);
 }
