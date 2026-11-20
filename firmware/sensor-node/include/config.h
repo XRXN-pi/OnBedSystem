@@ -1,11 +1,15 @@
 #pragma once
 #include <Arduino.h>
 
-// ---------- ชื่อ node ----------
-// ไม่ต้องแก้ตรงนี้ ชื่อถูกกำหนดจาก platformio.ini (env:wc1 / env:wc2)
-#ifndef NODE_ID
-#define NODE_ID "WC-1"
-#define NODE_IDN 1
+#ifdef NODE_IDN
+#define __NODE_ID(ID) "WC-" #ID
+#define _NODE_ID(ID) __NODE_ID(ID)
+#define NODE_ID _NODE_ID(NODE_IDN)
+#else
+#define NODE_ID "FULL"
+#define IR_BEAM
+#define ULTRASONIC
+#define WATER_LEVEL
 #endif
 
 // ---------- Gateway ----------
@@ -17,22 +21,30 @@ static const uint8_t GATEWAY_MAC[6] = { 0x48, 0x9D, 0x31, 0xE3, 0xC9, 0x78 };
 
 // ---------- WC-1 ----------
 #if NODE_IDN == 1
-
-#define BEAM_PIN          27  // KY-032 (obstacle avoidance) ขา OUT: LOW เมื่อมีคนผ่านหน้าเซ็นเซอร์
-#define BEAM_DEBOUNCE_MS  500 // คนหนึ่งคนอาจทำให้สัญญาณกระพริบหลายครั้ง นับใหม่ได้หลัง 500 ms
-
-#define US_TRIG_PIN       32  // Ultrasonic Trigger
-#define US_ECHO_PIN       33  // Ultrasonic Echo
-#define US_INTERVAL_MS    1000
-
+#define IR_BEAM
+#define ULTRASONIC
 #endif
 
 // ---------- WC-2 ----------
 #if NODE_IDN == 2
+#define WATER_LEVEL
+#endif
 
+// ---------- Sensors ----------
+#ifdef IR_BEAM
+#define BEAM_PIN          27  // KY-032 (obstacle avoidance) ขา OUT: LOW เมื่อมีคนผ่านหน้าเซ็นเซอร์
+#define BEAM_DEBOUNCE_MS  500 // คนหนึ่งคนอาจทำให้สัญญาณกระพริบหลายครั้ง นับใหม่ได้หลัง 500 ms
+#endif
+
+#ifdef ULTRASONIC
+#define US_TRIG_PIN       32  // Ultrasonic Trigger
+#define US_ECHO_PIN       33  // Ultrasonic Echo
+#define US_INTERVAL_MS    1000
+#endif
+
+#ifdef WATER_LEVEL
 #define WATER_LEVEL_PIN       4   // Water level sensor
 #define WATER_LEVEL_INTERVAL  500
-
 #endif
 
 // ---------- Telemetry ----------

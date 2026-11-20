@@ -5,7 +5,11 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
-#if NODE_IDN == 1
+#ifdef IR_BEAM
+
+#endif
+
+#ifdef ULTRASONIC
 #include <Ultrasonic.h>
 
 Ultrasonic us(US_TRIG_PIN, US_ECHO_PIN);
@@ -21,16 +25,10 @@ void UltrasonicTaskCode(void* pvParameters) {
     delay(US_INTERVAL_MS);
   }
 }
+#endif
 
-void buildDocument(JsonDocument& doc) {
-  if (UltrasonicQueue != NULL) {
-    int value;
-    while (xQueueReceive(UltrasonicQueue, &value, (TickType_t)10) == pdTRUE) {
-      doc["ultrasonic"].add(value);
-    }
-  }
-}
-#elif NODE_IDN == 2
+#ifdef WATER_LEVEL
+
 #endif
 
 #pragma region telemetry
@@ -40,6 +38,21 @@ volatile bool sendDone = false;
 volatile bool sendOk = false;
 uint32_t seq = 0;
 int failStreak = 0;
+
+void buildDocument(JsonDocument& doc) {
+#ifdef IR_BEAM
+#endif
+#ifdef ULTRASONIC
+  if (UltrasonicQueue != NULL) {
+    int value;
+    while (xQueueReceive(UltrasonicQueue, &value, (TickType_t)10) == pdTRUE) {
+      doc["ultrasonic"].add(value);
+    }
+  }
+#endif
+#ifdef WATER_LEVEL
+#endif
+}
 
 // ESP-NOW เรียกฟังก์ชันนี้หลังส่งแต่ละครั้ง บอกว่า gateway ตอบรับ (ACK) หรือไม่
 void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
@@ -126,8 +139,6 @@ void TelemetryTaskCode(void* pvParameters) {
     if (ok) {
       failStreak = 0;
     } else {
-#if NODE_IDN == 1
-#endif
       if (++failStreak >= FAILS_BEFORE_RESCAN) {
         Serial.println("Gateway unreachable, rescanning channel...");
         findGatewayChannel();
@@ -158,7 +169,7 @@ void setup() {
     &TelemetryTask
   );
 
-#if NODE_IDN == 1
+#ifdef ULTRASONIC
   xTaskCreate(
     UltrasonicTaskCode,
     "TelemetryTask",
@@ -167,8 +178,6 @@ void setup() {
     2,
     &UltrasonicTask
   );
-
-#elif NODE_IDN == 2
 #endif
 }
 
