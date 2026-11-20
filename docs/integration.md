@@ -21,3 +21,9 @@
 | node ขึ้น FAILED | MAC ใน `config.h`, ชื่อ hotspot, เปิด gateway ก่อน node |
 | gateway ได้ข้อมูลแต่ dashboard ไม่ขึ้น | Shadow ใน portal อัปเดตไหม → ถ้าใช่ ปัญหาอยู่ที่ datasource ของ dashboard |
 | collect.py ไม่ได้ข้อมูล | device `ai-service` อยู่ group เดียวกับ `gateway` ไหม |
+
+# log
+**รูปแบบ**
+```- 2026-11-20 18:30 node WC-2 ส่ง FAILED → MAC ใน config.h พิมพ์ผิด 1 หลัก → แก้แล้วแฟลชใหม่ ผ่าน```
+- 2026-11-20 12:30 run code ไม่ผ่าน → แก้ environment แล้วรันผ่าน
+- 2026-11-20 13:04 BUTTON_PIN กดแล้วเป็นปุ่มเพิ่มไฟ → แก้ code
