@@ -5,36 +5,37 @@
 // ไม่ต้องแก้ตรงนี้ ชื่อถูกกำหนดจาก platformio.ini (env:wc1 / env:wc2)
 #ifndef NODE_ID
 #define NODE_ID "WC-1"
+#define NODE_IDN 1
 #endif
 
 // ---------- Gateway ----------
 // MAC address ของ gateway (gateway พิมพ์ออกมาตอนเปิดเครื่อง: "Gateway MAC: ...")
-// ตัวอย่าง: ถ้า gateway พิมพ์ว่า 24:6F:28:AA:BB:CC ให้ใส่ {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0xCC}
-static const uint8_t GATEWAY_MAC[6] = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0xCC};
+static const uint8_t GATEWAY_MAC[6] = { 0x48, 0x9D, 0x31, 0xE3, 0xC9, 0x78 };
 
 // ชื่อ Wi-Fi (hotspot) ที่ gateway ต่ออยู่ ใช้หา channel เท่านั้น node ไม่ได้ต่อ Wi-Fi
 #define WIFI_SSID "OnBed-Hotspot"
 
-// ---------- ขา GPIO ----------
-#define MQ_PIN   34   // MQ-137 ขา AO (ผ่าน voltage divider)
-#define BEAM_PIN 27   // KY-032 (obstacle avoidance) ขา OUT: LOW เมื่อมีคนผ่านหน้าเซ็นเซอร์
+// ---------- WC-1 ----------
+#if NODE_IDN == 1
 
-// ---------- MQ-137 ----------
-// node ไหนมี MQ-137 กำหนดใน platformio.ini (HAS_MQ=1 มี, HAS_MQ=0 ไม่มี) — โปรเจคนี้ WC-2 (โซนโถ) มี, WC-1 (ทางเข้า) ไม่มี
-#ifndef HAS_MQ
-#define HAS_MQ 1
-#endif
-#define DIVIDER_RATIO 1.5f   // R บน 10k, R ล่าง 20k → (10+20)/20 = 1.5
-#define MQ_VCC        5.0f   // ไฟเลี้ยงโมดูล MQ-137
-// ค่า R0 จากโหมด calibrate ใส่แยกของแต่ละตัวใน platformio.ini (MQ_R0_VALUE) ถ้าไม่ใส่จะใช้ 1.0
-#ifdef MQ_R0_VALUE
-#define MQ_R0 MQ_R0_VALUE
-#else
-#define MQ_R0 1.0f
+#define BEAM_PIN          27  // KY-032 (obstacle avoidance) ขา OUT: LOW เมื่อมีคนผ่านหน้าเซ็นเซอร์
+#define BEAM_DEBOUNCE_MS  500 // คนหนึ่งคนอาจทำให้สัญญาณกระพริบหลายครั้ง นับใหม่ได้หลัง 500 ms
+
+#define US_TRIG_PIN       32  // Ultrasonic Trigger
+#define US_ECHO_PIN       33  // Ultrasonic Echo
+#define US_INTERVAL_MS    1000
+
 #endif
 
-// ---------- เวลา ----------
+// ---------- WC-2 ----------
+#if NODE_IDN == 2
+
+#define WATER_LEVEL_PIN       4   // Water level sensor
+#define WATER_LEVEL_INTERVAL  500
+
+#endif
+
+// ---------- Telemetry ----------
 #define REPORT_INTERVAL_MS 10000   // ส่งข้อมูลทุก 10 วินาที
-#define BEAM_DEBOUNCE_MS   500     // คนหนึ่งคนอาจทำให้สัญญาณกระพริบหลายครั้ง นับใหม่ได้หลัง 500 ms
 #define MAX_ATTEMPTS       4       // ส่ง 1 ครั้ง + ส่งซ้ำได้อีก 3 ครั้ง
 #define FAILS_BEFORE_RESCAN 3      // ส่งไม่ถึงติดกัน 3 รอบ → หา channel ใหม่
