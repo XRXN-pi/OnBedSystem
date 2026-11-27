@@ -6,10 +6,11 @@
 #define _NODE_ID(ID) __NODE_ID(ID)
 #define NODE_ID _NODE_ID(NODE_IDN)
 #else
-#define NODE_ID "FULL"
+#define NODE_ID "TEST"
 #define IR_BEAM
 #define ULTRASONIC
 #define WATER_LEVEL
+#define OPT_TELEM
 #endif
 
 // ---------- Gateway ----------
