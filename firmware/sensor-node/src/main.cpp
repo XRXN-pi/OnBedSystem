@@ -100,8 +100,13 @@ void startEspNow(int channel) {
 void findGatewayChannel() {
   int ch;
   while ((ch = scanForChannel()) < 0) {
+#ifndef OPT_TELEM
     Serial.printf("WiFi '%s' not found, retry in 5 s\n", WIFI_SSID);
     delay(5000);
+#else
+    Serial.printf("WiFi '%s' not found, canceling\n", WIFI_SSID);
+    return;
+#endif
   }
   startEspNow(ch);
 }
